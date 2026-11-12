@@ -1,6 +1,10 @@
 
 const crypto = require("crypto");
 
+const BUCKET = "zuckerbots-releases";
+const CORE_PREFIX = "core/";
+const MAX_CORE_FILE_SIZE = 2 * 1024 * 1024;
+
 function safeEqual(a, b) {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
@@ -82,6 +86,60 @@ async function supabaseRequest(path, options = {}) {
       ...(options.headers || {})
     }
   });
+}
+
+function safeCorePath(value) {
+  if (typeof value !== "string") return null;
+
+  const path = value.trim();
+
+  if (
+    !path ||
+    path.length > 180 ||
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    !/^[a-zA-Z0-9._/-]+$/.test(path)
+  ) {
+    return null;
+  }
+
+  const parts = path.split("/");
+
+  if (
+    parts.some(part =>
+      !part ||
+      part === "." ||
+      part === ".."
+    )
+  ) {
+    return null;
+  }
+
+  const allowedExtensions = [
+    ".js",
+    ".cjs",
+    ".mjs",
+    ".json",
+    ".html",
+    ".css",
+    ".md",
+    ".txt"
+  ];
+
+  const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
+
+  if (!allowedExtensions.includes(extension)) {
+    return null;
+  }
+
+  return path;
+}
+
+function storagePathUrl(path) {
+  return path
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
 }
 
 module.exports = async (req, res) => {
@@ -302,7 +360,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // GERAR AUTORIZAÇÃO TEMPORÁRIA DE UPLOAD
+  // PREPARAR UPLOAD DE PACOTE ZIP
   if (action === "create_upload" && req.method === "POST") {
     try {
       const { version, fileName, fileSize } = req.body || {};
@@ -339,7 +397,7 @@ module.exports = async (req, res) => {
         `releases/${version}/${crypto.randomUUID()}.zip`;
 
       const response = await supabaseRequest(
-        `/storage/v1/object/upload/sign/zuckerbots-releases/${storagePath}`,
+        `/storage/v1/object/upload/sign/${BUCKET}/${storagePathUrl(storagePath)}`,
         {
           method: "POST",
           headers: {
@@ -475,10 +533,200 @@ module.exports = async (req, res) => {
     }
   }
 
+  // ==========================================
+  // GERENCIADOR DO NÚCLEO
+  // ==========================================
+
+  // LISTAR ARQUIVOS DO NÚCLEO
+  if (action === "list_core_files" && req.method === "GET") {
+    try {
+      const response = await supabaseRequest(
+        `/storage/v1/object/list/${BUCKET}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prefix: "core",
+            limit: 1000,
+            offset: 0,
+            sortBy: {
+              column: "name",
+              order: "asc"
+            }
+          })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[LIST CORE FILES]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível listar os arquivos do núcleo.",
+          details: result.message || result.error || "Erro no Storage"
+        });
+      }
+
+      const files = (Array.isArray(result) ? result : [])
+        .filter(item => item && item.id)
+        .map(item => ({
+          name: item.name,
+          path: `${CORE_PREFIX}${item.name}`,
+          size: Number(item.metadata?.size || 0),
+          updatedAt: item.updated_at || item.created_at || null
+        }));
+
+      return res.status(200).json({
+        success: true,
+        files
+      });
+
+    } catch (error) {
+      console.error("[LIST CORE FILES]", error);
+
+      return res.status(500).json({
+        error: "Erro ao buscar arquivos do núcleo."
+      });
+    }
+  }
+
+  // PREPARAR UPLOAD OU SUBSTITUIÇÃO DE ARQUIVO DO NÚCLEO
+  if (action === "create_core_upload" && req.method === "POST") {
+    try {
+      const { filePath, fileSize } = req.body || {};
+
+      const safePath = safeCorePath(filePath);
+
+      if (!safePath) {
+        return res.status(400).json({
+          error: "Caminho ou extensão de arquivo não permitido."
+        });
+      }
+
+      if (
+        !Number.isSafeInteger(fileSize) ||
+        fileSize <= 0 ||
+        fileSize > MAX_CORE_FILE_SIZE
+      ) {
+        return res.status(400).json({
+          error: "O arquivo deve ter até 2 MB."
+        });
+      }
+
+      const storagePath = `${CORE_PREFIX}${safePath}`;
+
+      const response = await supabaseRequest(
+        `/storage/v1/object/upload/sign/${BUCKET}/${storagePathUrl(storagePath)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            upsert: true
+          })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.url) {
+        console.error("[CORE UPLOAD SIGN]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível preparar o envio do arquivo.",
+          details: result.message || result.error || "Erro no Storage"
+        });
+      }
+
+      const signedUrl = result.url.startsWith("http")
+        ? result.url
+        : `${supabaseUrl}/storage/v1${result.url}`;
+
+      return res.status(200).json({
+        success: true,
+        storagePath,
+        signedUrl
+      });
+
+    } catch (error) {
+      console.error("[CORE UPLOAD]", error);
+
+      return res.status(500).json({
+        error: "Erro ao preparar o envio do arquivo."
+      });
+    }
+  }
+
+  // EXCLUIR ARQUIVO DO NÚCLEO
+  if (action === "delete_core_file" && req.method === "POST") {
+    try {
+      const { storagePath } = req.body || {};
+
+      if (
+        typeof storagePath !== "string" ||
+        !storagePath.startsWith(CORE_PREFIX)
+      ) {
+        return res.status(400).json({
+          error: "Caminho do arquivo inválido."
+        });
+      }
+
+      const safePath = safeCorePath(
+        storagePath.slice(CORE_PREFIX.length)
+      );
+
+      if (!safePath) {
+        return res.status(400).json({
+          error: "Arquivo não permitido."
+        });
+      }
+
+      const response = await supabaseRequest(
+        `/storage/v1/object/${BUCKET}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prefixes: [`${CORE_PREFIX}${safePath}`]
+          })
+        }
+      );
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error("[DELETE CORE FILE]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível excluir o arquivo.",
+          details: result.message || result.error || "Erro no Storage"
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Arquivo excluído com sucesso."
+      });
+
+    } catch (error) {
+      console.error("[DELETE CORE FILE]", error);
+
+      return res.status(500).json({
+        error: "Erro ao excluir o arquivo."
+      });
+    }
+  }
+
   return res.status(404).json({
     error: "Operação não encontrada",
     receivedAction: action || null,
     receivedMethod: req.method
   });
 };
-                        
+    
