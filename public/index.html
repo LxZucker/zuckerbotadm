@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080808">
-  <title>ZuckerBotADM</title>
+  <title>Login | ZuckerBotADM</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -22,12 +22,22 @@
 
       <form id="login-form">
         <label for="username">Usuário</label>
-        <input id="username" type="text" autocomplete="username"
-          placeholder="Seu usuário" required>
+        <input
+          id="username"
+          type="text"
+          autocomplete="username"
+          placeholder="Seu usuário"
+          required
+        >
 
         <label for="password">Senha</label>
-        <input id="password" type="password"
-          autocomplete="current-password" placeholder="Sua senha" required>
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Sua senha"
+          required
+        >
 
         <p id="login-error" class="error"></p>
 
@@ -36,87 +46,9 @@
         </button>
       </form>
 
-      <p class="security-note">ACESSO PROTEGIDO · ZUCKERBOTS</p>
-    </section>
-
-    <section id="dashboard-screen" class="dashboard hidden">
-
-      <header class="topbar">
-        <div class="brand">
-          <span>Z</span><span>B</span> ZuckerBotADM
-        </div>
-        <button id="logout-button" class="logout">SAIR</button>
-      </header>
-
-      <div class="welcome">
-        <p class="eyebrow">PAINEL ADMINISTRATIVO</p>
-        <h1>Central de <span>controle</span></h1>
-        <p>Bem-vindo ao centro de gerenciamento do ZuckerBots.</p>
-      </div>
-
-      <section class="panel-card release-section">
-        <div class="card-icon">↻</div>
-        <h2>Publicar atualização</h2>
-        <p>Prepare uma nova versão oficial para distribuir aos dispositivos.</p>
-
-        <form id="release-form">
-
-          <label for="release-version">Versão</label>
-          <input
-            id="release-version"
-            type="text"
-            placeholder="Ex.: 1.1.0"
-            required
-          >
-
-          <label for="release-notes">Novidades da versão</label>
-          <textarea
-            id="release-notes"
-            rows="5"
-            placeholder="Descreva as mudanças desta atualização..."
-          ></textarea>
-
-          <label for="release-file">Pacote da atualização (.zip)</label>
-          <input
-            id="release-file"
-            type="file"
-            accept=".zip,application/zip"
-            required
-          >
-
-          <p id="release-message" class="error"></p>
-
-          <button id="publish-button" type="submit">
-            PREPARAR PUBLICAÇÃO
-          </button>
-
-        </form>
-      </section>
-
-      <div class="cards">
-
-        <article class="panel-card">
-          <div class="card-icon">↻</div>
-          <h2>Atualizações</h2>
-          <p>Gerencie as versões oficiais do ZuckerBots.</p>
-          <span class="status">ÁREA EM PREPARAÇÃO</span>
-        </article>
-
-        <article class="panel-card">
-          <div class="card-icon">▣</div>
-          <h2>Dispositivos</h2>
-          <p>Acompanhe os dispositivos conectados ao ZuckerBots.</p>
-          <span class="status">EM CONSTRUÇÃO</span>
-        </article>
-
-        <article class="panel-card">
-          <div class="card-icon">⚙</div>
-          <h2>Sistema</h2>
-          <p>Gerencie as configurações administrativas.</p>
-          <span class="status">EM CONSTRUÇÃO</span>
-        </article>
-
-      </div>
+      <p class="security-note">
+        ACESSO PROTEGIDO · ZUCKERBOTS
+      </p>
     </section>
 
   </main>
