@@ -1,0 +1,91 @@
+
+const loginScreen = document.getElementById("login-screen");
+const dashboardScreen = document.getElementById("dashboard-screen");
+const loginForm = document.getElementById("login-form");
+const loginButton = document.getElementById("login-button");
+const loginError = document.getElementById("login-error");
+
+function showDashboard() {
+  loginScreen.classList.add("hidden");
+  dashboardScreen.classList.remove("hidden");
+}
+
+function showLogin() {
+  dashboardScreen.classList.add("hidden");
+  loginScreen.classList.remove("hidden");
+}
+
+async function checkSession() {
+  try {
+    const response = await fetch("/api/admin/auth", {
+      method: "GET",
+      credentials: "same-origin"
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.authenticated) {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  } catch (error) {
+    showLogin();
+  }
+}
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  loginError.textContent = "";
+  loginButton.disabled = true;
+  loginButton.textContent = "VERIFICANDO...";
+
+  try {
+    const response = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Não foi possível entrar.");
+    }
+
+    loginForm.reset();
+    showDashboard();
+
+  } catch (error) {
+    loginError.textContent = error.message;
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = "ENTRAR NO PAINEL";
+  }
+});
+
+document.getElementById("logout-button").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/admin/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      throw new Error("Não foi possível encerrar a sessão.");
+    }
+
+    showLogin();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+checkSession();
