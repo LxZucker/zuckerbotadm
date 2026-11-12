@@ -1,393 +1,208 @@
 
-const crypto = require("crypto");
+const loginScreen = document.getElementById("login-screen");
+const dashboardScreen = document.getElementById("dashboard-screen");
+const loginForm = document.getElementById("login-form");
+const loginButton = document.getElementById("login-button");
+const loginError = document.getElementById("login-error");
 
-function safeEqual(a, b) {
-  const x = Buffer.from(String(a));
-  const y = Buffer.from(String(b));
-
-  return x.length === y.length &&
-    crypto.timingSafeEqual(x, y);
+function showDashboard() {
+  loginScreen.classList.add("hidden");
+  dashboardScreen.classList.remove("hidden");
 }
 
-function sign(payload, secret) {
-  return crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("base64url");
+function showLogin() {
+  dashboardScreen.classList.add("hidden");
+  loginScreen.classList.remove("hidden");
 }
 
-function getCookie(req, name) {
-  const cookies = (req.headers.cookie || "").split(";");
+async function api(action, method = "GET", data = {}) {
+  const options = {
+    method,
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  };
 
-  for (const item of cookies) {
-    const separator = item.indexOf("=");
-
-    if (separator < 0) continue;
-
-    const key = item.slice(0, separator).trim();
-    const value = item.slice(separator + 1).trim();
-
-    if (key === name) return value;
+  if (method === "POST") {
+    options.body = JSON.stringify({ ...data, action });
   }
 
-  return null;
+  const url = method === "GET"
+    ? `/api/admin?action=${encodeURIComponent(action)}`
+    : "/api/admin";
+
+  const response = await fetch(url, options);
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || "Erro na comunicação com o servidor");
+  }
+
+  return result;
 }
 
-function verifySession(req, secret) {
-  const session = getCookie(req, "zucker_admin");
+// LOGIN
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
 
-  if (!session) return null;
-
-  const parts = session.split(".");
-  if (parts.length !== 2) return null;
-
-  const [payload, signature] = parts;
-  const expected = sign(payload, secret);
-
-  if (!safeEqual(signature, expected)) return null;
+  loginError.textContent = "";
+  loginButton.disabled = true;
+  loginButton.textContent = "VERIFICANDO...";
 
   try {
-    const data = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8")
-    );
+    await api("login", "POST", {
+      username: document.getElementById("username").value,
+      password: document.getElementById("password").value
+    });
 
-    if (
-      !data.user ||
-      !data.exp ||
-      data.exp < Date.now() ||
-      data.user !== process.env.ADMIN_USERNAME
-    ) {
-      return null;
-    }
+    loginForm.reset();
+    showDashboard();
 
-    return data;
-  } catch {
-    return null;
+  } catch (error) {
+    loginError.textContent = error.message;
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = "ENTRAR NO PAINEL";
   }
+});
+
+// SAIR
+document.getElementById("logout-button").addEventListener("click", async () => {
+  try {
+    await api("logout", "POST");
+    showLogin();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+// CALCULAR SHA-256
+async function calculateSHA256(file) {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-async function supabaseRequest(path, options = {}) {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// PUBLICAR RASCUNHO
+const releaseForm = document.getElementById("release-form");
 
-  if (!url || !key) {
-    throw new Error("Variáveis do Supabase não configuradas");
-  }
+if (releaseForm) {
+  releaseForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  return fetch(`${url}${path}`, {
-    ...options,
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      ...(options.headers || {})
-    }
-  });
-}
+    const message = document.getElementById("release-message");
+    const button = document.getElementById("publish-button");
 
-module.exports = async (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
+    const version = document.getElementById("release-version").value.trim();
+    const notes = document.getElementById("release-notes").value.trim();
+    const file = document.getElementById("release-file").files[0];
 
-  const secret = process.env.ADMIN_SESSION_SECRET;
+    message.textContent = "";
 
-  if (!secret || secret.length < 32) {
-    return res.status(500).json({
-      error: "Chave de sessão não configurada"
-    });
-  }
-
-  // RECONHECER OPERAÇÃO PELA URL OU PELO CORPO
-  const action =
-    req.query?.action ||
-    req.body?.action;
-
-  // LOGIN
-  if (action === "login" && req.method === "POST") {
-    const username = req.body?.username;
-    const password = req.body?.password;
-
-    if (
-      typeof username !== "string" ||
-      typeof password !== "string" ||
-      username.length > 100 ||
-      password.length > 200
-    ) {
-      return res.status(400).json({
-        error: "Preencha usuário e senha corretamente"
-      });
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      message.textContent = "Use o formato X.Y.Z. Exemplo: 1.0.0";
+      return;
     }
 
-    if (
-      !safeEqual(username, process.env.ADMIN_USERNAME || "") ||
-      !safeEqual(password, process.env.ADMIN_PASSWORD || "")
-    ) {
-      return res.status(401).json({
-        error: "Usuário ou senha incorretos"
-      });
+    if (!file || !file.name.toLowerCase().endsWith(".zip")) {
+      message.textContent = "Selecione um arquivo ZIP.";
+      return;
     }
 
-    const payload = Buffer.from(JSON.stringify({
-      user: username,
-      exp: Date.now() + 8 * 60 * 60 * 1000
-    })).toString("base64url");
-
-    const signature = sign(payload, secret);
-
-    res.setHeader(
-      "Set-Cookie",
-      `zucker_admin=${payload}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`
-    );
-
-    return res.status(200).json({
-      success: true
-    });
-  }
-
-  // VERIFICAR SESSÃO
-  if (action === "auth" && req.method === "GET") {
-    const session = verifySession(req, secret);
-
-    if (!session) {
-      return res.status(401).json({
-        authenticated: false
-      });
+    if (file.size <= 0 || file.size > 50 * 1024 * 1024) {
+      message.textContent = "O ZIP precisa ter até 50 MB.";
+      return;
     }
 
-    return res.status(200).json({
-      authenticated: true,
-      user: session.user
-    });
-  }
+    button.disabled = true;
 
-  // LOGOUT
-  if (action === "logout" && req.method === "POST") {
-    res.setHeader(
-      "Set-Cookie",
-      "zucker_admin=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
-    );
-
-    return res.status(200).json({
-      success: true
-    });
-  }
-
-  // PROTEGER TODAS AS OUTRAS OPERAÇÕES
-  const session = verifySession(req, secret);
-
-  if (!session) {
-    return res.status(401).json({
-      error: "Acesso não autorizado"
-    });
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-
-  // TESTAR SUPABASE
-  if (action === "supabase_test" && req.method === "GET") {
     try {
-      const response = await supabaseRequest(
-        "/rest/v1/bot_releases?select=id,version,status,created_at&order=created_at.desc"
-      );
+      // 1. CALCULAR HASH
+      message.textContent = "Calculando integridade do pacote...";
+      button.textContent = "CALCULANDO...";
 
-      const result = await response.json();
+      const sha256 = await calculateSHA256(file);
 
-      if (!response.ok) {
-        return res.status(502).json({
-          error: "O Supabase recusou a consulta",
-          details: result.message || result.error || "Erro desconhecido"
-        });
-      }
+      // 2. SOLICITAR AUTORIZAÇÃO
+      message.textContent = "Preparando armazenamento seguro...";
+      button.textContent = "PREPARANDO ENVIO...";
 
-      return res.status(200).json({
-        success: true,
-        message: "Conexão com Supabase estabelecida!",
-        releases: result
-      });
-    } catch (error) {
-      console.error("[SUPABASE]", error);
-
-      return res.status(500).json({
-        error: "Falha ao conectar com Supabase"
-      });
-    }
-  }
-
-  // GERAR AUTORIZAÇÃO TEMPORÁRIA DE UPLOAD
-  if (action === "create_upload" && req.method === "POST") {
-    try {
-      const { version, fileName, fileSize } = req.body || {};
-
-      if (
-        typeof version !== "string" ||
-        !/^\d+\.\d+\.\d+$/.test(version)
-      ) {
-        return res.status(400).json({
-          error: "Versão inválida. Use X.Y.Z."
-        });
-      }
-
-      if (
-        typeof fileName !== "string" ||
-        !fileName.toLowerCase().endsWith(".zip")
-      ) {
-        return res.status(400).json({
-          error: "O arquivo precisa ser ZIP."
-        });
-      }
-
-      if (
-        !Number.isSafeInteger(fileSize) ||
-        fileSize <= 0 ||
-        fileSize > 50 * 1024 * 1024
-      ) {
-        return res.status(400).json({
-          error: "O ZIP deve ter até 50 MB."
-        });
-      }
-
-      const storagePath =
-        `releases/${version}/${crypto.randomUUID()}.zip`;
-
-      const response = await supabaseRequest(
-        `/storage/v1/object/upload/sign/zuckerbots-releases/${storagePath}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({})
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok || !result.url) {
-        console.error("[STORAGE SIGN]", result);
-
-        return res.status(502).json({
-          error: "Não foi possível preparar o envio do ZIP.",
-          details: result.message || result.error || "Erro no Storage"
-        });
-      }
-
-      const signedUrl = result.url.startsWith("http")
-        ? result.url
-        : `${supabaseUrl}/storage/v1${result.url}`;
-
-      return res.status(200).json({
-        success: true,
-        storagePath,
-        signedUrl
-      });
-
-    } catch (error) {
-      console.error("[CREATE UPLOAD]", error);
-
-      return res.status(500).json({
-        error: "Erro ao preparar o envio."
-      });
-    }
-  }
-
-  // REGISTRAR VERSÃO COMO RASCUNHO
-  if (action === "save_release" && req.method === "POST") {
-    try {
-      const {
+      const upload = await api("create_upload", "POST", {
         version,
-        storagePath,
-        sha256,
-        packageSize,
-        releaseNotes
-      } = req.body || {};
-
-      if (
-        typeof version !== "string" ||
-        !/^\d+\.\d+\.\d+$/.test(version)
-      ) {
-        return res.status(400).json({
-          error: "Versão inválida."
-        });
-      }
-
-      if (
-        typeof storagePath !== "string" ||
-        !storagePath.startsWith(`releases/${version}/`) ||
-        !storagePath.endsWith(".zip")
-      ) {
-        return res.status(400).json({
-          error: "Caminho do pacote inválido."
-        });
-      }
-
-      if (
-        typeof sha256 !== "string" ||
-        !/^[a-f0-9]{64}$/i.test(sha256)
-      ) {
-        return res.status(400).json({
-          error: "Hash SHA-256 inválido."
-        });
-      }
-
-      if (
-        !Number.isSafeInteger(packageSize) ||
-        packageSize <= 0 ||
-        packageSize > 50 * 1024 * 1024
-      ) {
-        return res.status(400).json({
-          error: "Tamanho do pacote inválido."
-        });
-      }
-
-      const response = await supabaseRequest(
-        "/rest/v1/bot_releases",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Prefer: "return=representation"
-          },
-          body: JSON.stringify({
-            version,
-            storage_path: storagePath,
-            sha256: sha256.toLowerCase(),
-            package_size: packageSize,
-            release_notes: String(releaseNotes || "").slice(0, 5000),
-            status: "draft"
-          })
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("[SAVE RELEASE]", result);
-
-        return res.status(400).json({
-          error: result.code === "23505"
-            ? "Essa versão já existe."
-            : "Não foi possível registrar a versão.",
-          details: result.message || result.error || "Erro desconhecido"
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Versão salva como rascunho.",
-        release: result[0]
+        fileName: file.name,
+        fileSize: file.size
       });
+
+      // 3. ENVIAR ZIP DIRETAMENTE AO SUPABASE
+      message.textContent = "Enviando pacote ao Supabase...";
+      button.textContent = "ENVIANDO ZIP...";
+
+      const uploadResponse = await fetch(upload.signedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/zip",
+          "x-upsert": "false"
+        },
+        body: file
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("[UPLOAD]", errorText);
+        throw new Error("Falha no envio do ZIP ao Supabase.");
+      }
+
+      // 4. REGISTRAR VERSÃO NO BANCO
+      message.textContent = "Registrando versão no banco de dados...";
+      button.textContent = "REGISTRANDO...";
+
+      await api("save_release", "POST", {
+        version,
+        storagePath: upload.storagePath,
+        sha256,
+        packageSize: file.size,
+        releaseNotes: notes
+      });
+
+      message.textContent =
+        "SUCESSO! Versão " + version + " salva como rascunho.";
+
+      message.style.color = "#36e58a";
+
+      releaseForm.reset();
 
     } catch (error) {
-      console.error("[SAVE RELEASE]", error);
+      console.error("[PUBLICAÇÃO]", error);
 
-      return res.status(500).json({
-        error: "Erro ao registrar a versão."
-      });
+      message.style.color = "#ff5555";
+      message.textContent = error.message ||
+        "Não foi possível preparar a atualização.";
+
+    } finally {
+      button.disabled = false;
+      button.textContent = "PREPARAR PUBLICAÇÃO";
     }
-  }
-
-  return res.status(404).json({
-    error: "Operação não encontrada",
-    receivedAction: action || null,
-    receivedMethod: req.method
   });
-};
-      
+}
+
+// VERIFICAR SESSÃO
+async function checkSession() {
+  try {
+    const result = await api("auth");
+
+    if (result.authenticated) {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+}
+
+checkSession();
+    
