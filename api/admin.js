@@ -95,7 +95,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  // RECONHECER OPERAÇÃO PELA URL OU PELO CORPO
   const action =
     req.query?.action ||
     req.body?.action;
@@ -207,6 +206,98 @@ module.exports = async (req, res) => {
 
       return res.status(500).json({
         error: "Falha ao conectar com Supabase"
+      });
+    }
+  }
+
+  // LISTAR VERSÕES
+  if (action === "list_releases" && req.method === "GET") {
+    try {
+      const response = await supabaseRequest(
+        "/rest/v1/bot_releases?select=id,version,status,created_at,release_notes,package_size,sha256,storage_path&order=created_at.desc"
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[LIST RELEASES]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível listar as versões."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        releases: result
+      });
+
+    } catch (error) {
+      console.error("[LIST RELEASES]", error);
+
+      return res.status(500).json({
+        error: "Erro ao buscar as versões."
+      });
+    }
+  }
+
+  // PUBLICAR VERSÃO
+  if (action === "publish_release" && req.method === "POST") {
+    try {
+      const { id } = req.body || {};
+
+      if (
+        typeof id !== "string" ||
+        !id.trim() ||
+        id.length > 100
+      ) {
+        return res.status(400).json({
+          error: "Identificador da versão inválido."
+        });
+      }
+
+      const response = await supabaseRequest(
+        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify({
+            status: "published"
+          })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[PUBLISH RELEASE]", result);
+
+        return res.status(400).json({
+          error: "Não foi possível publicar a versão.",
+          details: result.message || result.error || "Erro desconhecido"
+        });
+      }
+
+      if (!result.length) {
+        return res.status(404).json({
+          error: "Versão não encontrada."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Versão publicada com sucesso!",
+        release: result[0]
+      });
+
+    } catch (error) {
+      console.error("[PUBLISH RELEASE]", error);
+
+      return res.status(500).json({
+        error: "Erro ao publicar a versão."
       });
     }
   }
@@ -390,4 +481,4 @@ module.exports = async (req, res) => {
     receivedMethod: req.method
   });
 };
-                                              
+                        
