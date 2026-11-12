@@ -1,91 +1,108 @@
 
-const loginScreen = document.getElementById("login-screen");
-const dashboardScreen = document.getElementById("dashboard-screen");
-const loginForm = document.getElementById("login-form");
-const loginButton = document.getElementById("login-button");
-const loginError = document.getElementById("login-error");
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>Painel | ZuckerBotADM</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
 
-function showDashboard() {
-  loginScreen.classList.add("hidden");
-  dashboardScreen.classList.remove("hidden");
-}
+    <section id="dashboard-screen" class="dashboard">
 
-function showLogin() {
-  dashboardScreen.classList.add("hidden");
-  loginScreen.classList.remove("hidden");
-}
+      <header class="topbar">
+        <div class="brand">
+          <span>Z</span><span>B</span> ZuckerBotADM
+        </div>
+        <button id="logout-button" class="logout">SAIR</button>
+      </header>
 
-async function checkSession() {
-  try {
-    const response = await fetch("/api/admin/auth", {
-      method: "GET",
-      credentials: "same-origin"
-    });
+      <div class="welcome">
+        <p class="eyebrow">PAINEL ADMINISTRATIVO</p>
+        <h1>Central de <span>controle</span></h1>
+        <p>Bem-vindo ao centro de gerenciamento do ZuckerBots.</p>
+      </div>
 
-    const data = await response.json();
+      <section class="panel-card release-section">
+        <div class="card-icon">↻</div>
+        <h2>Publicar atualização</h2>
+        <p>Prepare uma nova versão oficial para distribuir aos dispositivos.</p>
 
-    if (response.ok && data.authenticated) {
-      showDashboard();
-    } else {
-      showLogin();
-    }
-  } catch (error) {
-    showLogin();
-  }
-}
+        <form id="release-form">
 
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+          <label for="release-version">Versão</label>
+          <input
+            id="release-version"
+            type="text"
+            placeholder="Ex.: 1.1.0"
+            required
+          >
 
-  loginError.textContent = "";
-  loginButton.disabled = true;
-  loginButton.textContent = "VERIFICANDO...";
+          <label for="release-notes">Novidades da versão</label>
+          <textarea
+            id="release-notes"
+            rows="5"
+            placeholder="Descreva as mudanças desta atualização..."
+          ></textarea>
 
-  try {
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        username: document.getElementById("username").value,
-        password: document.getElementById("password").value
-      })
-    });
+          <label for="release-file">Pacote da atualização (.zip)</label>
+          <input
+            id="release-file"
+            type="file"
+            accept=".zip,application/zip"
+            required
+          >
 
-    const data = await response.json();
+          <p id="release-message" class="error"></p>
 
-    if (!response.ok) {
-      throw new Error(data.error || "Não foi possível entrar.");
-    }
+          <button id="publish-button" type="submit">
+            PREPARAR PUBLICAÇÃO
+          </button>
 
-    loginForm.reset();
-    showDashboard();
+        </form>
+      </section>
 
-  } catch (error) {
-    loginError.textContent = error.message;
-  } finally {
-    loginButton.disabled = false;
-    loginButton.textContent = "ENTRAR NO PAINEL";
-  }
-});
+      <section class="panel-card releases-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">GERENCIAMENTO</p>
+            <h2>Versões cadastradas</h2>
+          </div>
 
-document.getElementById("logout-button").addEventListener("click", async () => {
-  try {
-    const response = await fetch("/api/admin/logout", {
-      method: "POST",
-      credentials: "same-origin"
-    });
+          <button id="refresh-releases" type="button" class="logout">
+            ATUALIZAR
+          </button>
+        </div>
 
-    if (!response.ok) {
-      throw new Error("Não foi possível encerrar a sessão.");
-    }
+        <p id="releases-message"></p>
+        <div id="releases-list"></div>
+      </section>
 
-    showLogin();
-  } catch (error) {
-    alert(error.message);
-  }
-});
+      <div class="cards">
 
-checkSession();
+        <article class="panel-card">
+          <div class="card-icon">▣</div>
+          <h2>Dispositivos</h2>
+          <p>Acompanhe os dispositivos conectados ao ZuckerBots.</p>
+          <span class="status">EM CONSTRUÇÃO</span>
+        </article>
+
+        <article class="panel-card">
+          <div class="card-icon">⚙</div>
+          <h2>Sistema</h2>
+          <p>Gerencie as configurações administrativas.</p>
+          <span class="status">EM CONSTRUÇÃO</span>
+        </article>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+</html>
