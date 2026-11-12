@@ -92,4 +92,48 @@ document.getElementById("logout-button").addEventListener("click", async () => {
   }
 });
 
+// FORMULÁRIO DE PUBLICAÇÃO
+const releaseForm = document.getElementById("release-form");
+
+if (releaseForm) {
+  releaseForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("release-message");
+    const button = document.getElementById("publish-button");
+
+    const version = document.getElementById("release-version").value.trim();
+    const notes = document.getElementById("release-notes").value.trim();
+    const file = document.getElementById("release-file").files[0];
+
+    message.textContent = "";
+
+    if (!version || !file) {
+      message.textContent = "Informe a versão e selecione o pacote ZIP.";
+      return;
+    }
+
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      message.textContent = "Use o formato de versão X.Y.Z. Exemplo: 1.0.0";
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      message.textContent = "Selecione um arquivo ZIP.";
+      return;
+    }
+
+    message.textContent =
+      "Formulário validado. O envio será ativado na próxima etapa.";
+
+    button.disabled = true;
+    button.textContent = "AGUARDANDO INTEGRAÇÃO...";
+
+    setTimeout(() => {
+      button.disabled = false;
+      button.textContent = "PREPARAR PUBLICAÇÃO";
+    }, 1500);
+  });
+}
+
 checkSession();
