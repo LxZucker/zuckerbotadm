@@ -7,7 +7,467 @@
   <meta name="theme-color" content="#080808">
   <title>Painel | ZuckerBotADM</title>
   <link rel="stylesheet" href="/style.css">
+
+  <style>
+    :root {
+      --bg: #080808;
+      --card: #111111;
+      --card2: #171717;
+      --red: #ff303b;
+      --green: #19e68c;
+      --text: #f5f5f5;
+      --muted: #888;
+      --border: rgba(255,255,255,.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse at 50% -20%, rgba(255,35,48,.13), transparent 55%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      width: min(100% - 28px, 1050px);
+      margin: 0 auto;
+      padding: 25px 0 55px;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px 18px;
+      background: rgba(17,17,17,.9);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+    }
+
+    .brand {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: .4px;
+    }
+
+    .brand span:first-child {
+      color: var(--red);
+      text-shadow: 0 0 12px rgba(255,48,59,.7);
+    }
+
+    .brand span:nth-child(2) {
+      color: var(--green);
+      text-shadow: 0 0 12px rgba(25,230,140,.6);
+    }
+
+    button {
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.12);
+    }
+
+    .logout {
+      background: #202020;
+      border: 1px solid var(--border);
+      color: white;
+      border-radius: 9px;
+      padding: 10px 15px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .7px;
+    }
+
+    .welcome {
+      padding: 14px 5px 5px;
+    }
+
+    .eyebrow {
+      color: var(--red);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .welcome h1 {
+      font-size: clamp(29px, 6vw, 43px);
+      line-height: 1.1;
+      margin: 0 0 12px;
+      font-weight: 900;
+    }
+
+    .welcome h1 span {
+      color: var(--red);
+    }
+
+    .welcome > p:last-child {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .panel-card {
+      background: linear-gradient(145deg, #151515, #0e0e0e);
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      padding: 23px;
+      min-width: 0;
+    }
+
+    .card-icon {
+      width: 43px;
+      height: 43px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,48,59,.1);
+      color: var(--red);
+      border: 1px solid rgba(255,48,59,.2);
+      border-radius: 12px;
+      font-size: 22px;
+      margin-bottom: 17px;
+    }
+
+    .panel-card h2 {
+      font-size: 19px;
+      margin: 0 0 9px;
+    }
+
+    .panel-card > p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* PUBLICAÇÃO */
+
+    .release-section {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(255,48,59,.25);
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(255,48,59,.13), transparent 48%),
+        linear-gradient(145deg, #171111, #101010 65%);
+      padding: 26px;
+    }
+
+    .release-section::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--red), #8d1720, transparent);
+    }
+
+    .release-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 15px;
+      margin-bottom: 23px;
+    }
+
+    .release-heading .card-icon {
+      flex-shrink: 0;
+      margin: 0;
+      width: 50px;
+      height: 50px;
+      font-size: 25px;
+    }
+
+    .release-heading h2 {
+      font-size: 21px;
+      margin: 1px 0 7px;
+    }
+
+    .release-heading p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .release-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--green);
+      background: rgba(25,230,140,.08);
+      border: 1px solid rgba(25,230,140,.18);
+      border-radius: 30px;
+      padding: 7px 11px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .7px;
+      margin-bottom: 19px;
+    }
+
+    .release-tag::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 9px var(--green);
+    }
+
+    .release-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-bottom: 17px;
+      min-width: 0;
+    }
+
+    .field label {
+      color: #ddd;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .field input,
+    .field textarea {
+      width: 100%;
+      color: white;
+      background: #090909;
+      border: 1px solid #303030;
+      border-radius: 10px;
+      padding: 13px 14px;
+      outline: none;
+      font: inherit;
+      font-size: 13px;
+      transition: .2s;
+    }
+
+    .field input:focus,
+    .field textarea:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(255,48,59,.09);
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 125px;
+    }
+
+    .upload-area {
+      display: block;
+      background: rgba(0,0,0,.35);
+      border: 1px dashed #555;
+      border-radius: 13px;
+      padding: 22px 15px;
+      text-align: center;
+      cursor: pointer;
+      transition: .2s;
+    }
+
+    .upload-area:hover {
+      border-color: var(--red);
+      background: rgba(255,48,59,.04);
+    }
+
+    .upload-icon {
+      font-size: 27px;
+      margin-bottom: 9px;
+    }
+
+    .upload-area strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .upload-area small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .upload-area input {
+      display: block;
+      width: 100%;
+      margin-top: 13px;
+      color: #aaa;
+      font-size: 11px;
+    }
+
+    .release-info {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 3px 0 19px;
+    }
+
+    .info-chip {
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.3);
+      border-radius: 8px;
+      color: #aaa;
+      font-size: 10px;
+    }
+
+    .info-chip strong {
+      color: white;
+    }
+
+    #publish-button,
+    .primary-button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(100deg, #ff303b, #c71928);
+      color: white;
+      padding: 15px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      box-shadow: 0 5px 22px rgba(255,48,59,.17);
+    }
+
+    #release-message {
+      font-size: 12px;
+      margin: 0 0 13px;
+    }
+
+    /* SEÇÕES */
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 17px;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+    }
+
+    .section-heading .eyebrow {
+      margin-bottom: 7px;
+    }
+
+    #releases-list,
+    #core-files-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 17px;
+    }
+
+    .cards .panel-card {
+      min-height: 175px;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      background: rgba(255,255,255,.05);
+      color: #999;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    /* NÚCLEO */
+
+    .core-section {
+      border-color: rgba(25,230,140,.19);
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(25,230,140,.08), transparent 48%),
+        linear-gradient(145deg, #101713, #101010 65%);
+    }
+
+    .core-section .card-icon {
+      color: var(--green);
+      background: rgba(25,230,140,.08);
+      border-color: rgba(25,230,140,.2);
+    }
+
+    .core-section .eyebrow {
+      color: var(--green);
+    }
+
+    .core-upload {
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 17px;
+      margin-top: 19px;
+    }
+
+    .core-upload .primary-button {
+      background: linear-gradient(100deg, #13bd75, #087b4b);
+      box-shadow: 0 5px 20px rgba(25,230,140,.12);
+    }
+
+    #core-file-message,
+    #core-files-message {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .core-path-hint {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.6;
+      margin: 7px 0 15px;
+    }
+
+    @media (max-width: 650px) {
+      .container {
+        width: min(100% - 20px, 1050px);
+        padding-top: 12px;
+      }
+
+      .panel-card {
+        padding: 18px;
+      }
+
+      .release-section {
+        padding: 19px;
+      }
+
+      .release-grid,
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .section-heading {
+        align-items: flex-start;
+      }
+
+      .release-heading h2 {
+        font-size: 19px;
+      }
+    }
+  </style>
 </head>
+
 <body>
   <main class="container">
 
@@ -17,74 +477,187 @@
         <div class="brand">
           <span>Z</span><span>B</span> ZuckerBotADM
         </div>
-        <button id="logout-button" class="logout">SAIR</button>
+        <button id="logout-button" class="logout" type="button">SAIR ↗</button>
       </header>
 
       <div class="welcome">
-        <p class="eyebrow">PAINEL ADMINISTRATIVO</p>
-        <h1>Central de <span>controle</span></h1>
-        <p>Bem-vindo ao centro de gerenciamento do ZuckerBots.</p>
+        <p class="eyebrow">CENTRAL ADMINISTRATIVA</p>
+        <h1>Central de <span>controle.</span></h1>
+        <p>Gerencie o núcleo, as versões e a distribuição do ZuckerBots.</p>
       </div>
 
+      <!-- PUBLICAR ATUALIZAÇÃO -->
+
       <section class="panel-card release-section">
-        <div class="card-icon">↻</div>
-        <h2>Publicar atualização</h2>
-        <p>Prepare uma nova versão oficial para distribuir aos dispositivos.</p>
+
+        <div class="release-heading">
+          <div class="card-icon">↻</div>
+          <div>
+            <p class="eyebrow">DISTRIBUIÇÃO DO SISTEMA</p>
+            <h2>Publicar atualização</h2>
+            <p>Prepare uma nova versão oficial para todos os dispositivos conectados.</p>
+          </div>
+        </div>
+
+        <span class="release-tag">GERENCIADOR DE VERSÕES</span>
 
         <form id="release-form">
 
-          <label for="release-version">Versão</label>
-          <input
-            id="release-version"
-            type="text"
-            placeholder="Ex.: 1.1.0"
-            required
-          >
+          <div class="release-grid">
 
-          <label for="release-notes">Novidades da versão</label>
-          <textarea
-            id="release-notes"
-            rows="5"
-            placeholder="Descreva as mudanças desta atualização..."
-          ></textarea>
+            <div class="field">
+              <label for="release-version">VERSÃO DO SISTEMA</label>
+              <input
+                id="release-version"
+                type="text"
+                placeholder="Ex.: 1.1.0"
+                pattern="[0-9]+\.[0-9]+\.[0-9]+"
+                required
+              >
+            </div>
 
-          <label for="release-file">Pacote da atualização (.zip)</label>
-          <input
-            id="release-file"
-            type="file"
-            accept=".zip,application/zip"
-            required
-          >
+            <div class="field">
+              <label for="release-file">PACOTE OFICIAL (.ZIP)</label>
+
+              <label class="upload-area" for="release-file">
+                <div class="upload-icon">📦</div>
+                <strong>Selecionar pacote</strong>
+                <small>Arquivo ZIP de até 50 MB</small>
+                <input
+                  id="release-file"
+                  type="file"
+                  accept=".zip,application/zip"
+                  required
+                >
+              </label>
+            </div>
+
+          </div>
+
+          <div class="field">
+            <label for="release-notes">NOVIDADES DESTA VERSÃO</label>
+            <textarea
+              id="release-notes"
+              rows="5"
+              placeholder="Descreva as melhorias, correções e novidades desta atualização..."
+            ></textarea>
+          </div>
+
+          <div class="release-info">
+            <span class="info-chip">Formato: <strong>ZIP</strong></span>
+            <span class="info-chip">Limite: <strong>50 MB</strong></span>
+            <span class="info-chip">Integridade: <strong>SHA-256</strong></span>
+          </div>
 
           <p id="release-message" class="error"></p>
 
           <button id="publish-button" type="submit">
-            PREPARAR PUBLICAÇÃO
+            PREPARAR NOVA PUBLICAÇÃO ↗
           </button>
 
         </form>
       </section>
 
+      <!-- VERSÕES CADASTRADAS -->
+
       <section class="panel-card releases-section">
+
         <div class="section-heading">
           <div>
-            <p class="eyebrow">GERENCIAMENTO</p>
+            <p class="eyebrow">HISTÓRICO</p>
             <h2>Versões cadastradas</h2>
           </div>
 
           <button id="refresh-releases" type="button" class="logout">
-            ATUALIZAR
+            ↻ ATUALIZAR
           </button>
         </div>
 
         <p id="releases-message"></p>
         <div id="releases-list"></div>
+
       </section>
+
+      <!-- GERENCIADOR DO NÚCLEO -->
+
+      <section class="panel-card core-section">
+
+        <div class="release-heading">
+          <div class="card-icon">⌘</div>
+          <div>
+            <p class="eyebrow">ARQUIVOS CENTRAIS</p>
+            <h2>Gerenciador do núcleo</h2>
+            <p>Envie, substitua e organize os arquivos principais do ZuckerBots.</p>
+          </div>
+        </div>
+
+        <span class="release-tag">ARMAZENAMENTO SUPABASE</span>
+
+        <div class="core-upload">
+
+          <form id="core-file-form">
+
+            <div class="field">
+              <label for="core-file-path">CAMINHO DO ARQUIVO</label>
+              <input
+                id="core-file-path"
+                type="text"
+                placeholder="Ex.: bot.js ou modules/comandos.js"
+                required
+              >
+              <p class="core-path-hint">
+                Use caminhos relativos. Exemplo: modules/boas-vindas.js.
+                Os arquivos ficam armazenados dentro de core/.
+              </p>
+            </div>
+
+            <div class="field">
+              <label for="core-file-input">SELECIONAR ARQUIVO</label>
+              <input
+                id="core-file-input"
+                type="file"
+                accept=".js,.cjs,.mjs,.json,.html,.css,.md,.txt"
+                required
+              >
+            </div>
+
+            <p id="core-file-message"></p>
+
+            <button class="primary-button" type="submit">
+              ENVIAR ARQUIVO PARA O NÚCLEO ↑
+            </button>
+
+          </form>
+
+        </div>
+
+        <div class="section-heading" style="margin-top:25px">
+          <div>
+            <p class="eyebrow">SUPABASE STORAGE / CORE</p>
+            <h2>Arquivos armazenados</h2>
+          </div>
+
+          <button
+            id="refresh-core-files"
+            type="button"
+            class="logout"
+          >
+            ↻ ATUALIZAR
+          </button>
+        </div>
+
+        <p id="core-files-message">Aguardando carregamento dos arquivos.</p>
+        <div id="core-files-list"></div>
+
+      </section>
+
+      <!-- OUTRAS ÁREAS -->
 
       <div class="cards">
 
         <article class="panel-card">
           <div class="card-icon">▣</div>
+          <p class="eyebrow">CONEXÕES</p>
           <h2>Dispositivos</h2>
           <p>Acompanhe os dispositivos conectados ao ZuckerBots.</p>
           <span class="status">EM CONSTRUÇÃO</span>
@@ -92,6 +665,7 @@
 
         <article class="panel-card">
           <div class="card-icon">⚙</div>
+          <p class="eyebrow">ADMINISTRAÇÃO</p>
           <h2>Sistema</h2>
           <p>Gerencie as configurações administrativas.</p>
           <span class="status">EM CONSTRUÇÃO</span>
@@ -99,10 +673,15 @@
 
       </div>
 
+      <p style="text-align:center;color:#555;font-size:10px;padding:10px">
+        ZuckerBotADM · CENTRAL DE GERENCIAMENTO
+      </p>
+
     </section>
 
   </main>
 
   <script src="/admin.js"></script>
 </body>
-</html>
+                </html>
+              
