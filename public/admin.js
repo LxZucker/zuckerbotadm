@@ -1,20 +1,4 @@
 
-const loginScreen = document.getElementById("login-screen");
-const dashboardScreen = document.getElementById("dashboard-screen");
-const loginForm = document.getElementById("login-form");
-const loginButton = document.getElementById("login-button");
-const loginError = document.getElementById("login-error");
-
-function showDashboard() {
-  loginScreen.classList.add("hidden");
-  dashboardScreen.classList.remove("hidden");
-}
-
-function showLogin() {
-  dashboardScreen.classList.add("hidden");
-  loginScreen.classList.remove("hidden");
-}
-
 async function api(action, method = "GET", data = {}) {
   const options = {
     method,
@@ -42,43 +26,104 @@ async function api(action, method = "GET", data = {}) {
   return result;
 }
 
+// =====================================
+// IDENTIFICAR A PÁGINA
+// =====================================
+
+const loginForm = document.getElementById("login-form");
+const dashboardScreen = document.getElementById("dashboard-screen");
+
+// =====================================
 // LOGIN
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+// =====================================
 
-  loginError.textContent = "";
-  loginButton.disabled = true;
-  loginButton.textContent = "VERIFICANDO...";
+if (loginForm) {
+  const loginButton = document.getElementById("login-button");
+  const loginError = document.getElementById("login-error");
 
-  try {
-    await api("login", "POST", {
-      username: document.getElementById("username").value,
-      password: document.getElementById("password").value
-    });
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-    loginForm.reset();
-    showDashboard();
-    await loadReleases();
+    loginError.textContent = "";
+    loginButton.disabled = true;
+    loginButton.textContent = "VERIFICANDO...";
 
-  } catch (error) {
-    loginError.textContent = error.message;
-  } finally {
-    loginButton.disabled = false;
-    loginButton.textContent = "ENTRAR NO PAINEL";
+    try {
+      await api("login", "POST", {
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value
+      });
+
+      loginForm.reset();
+
+      window.location.href = "/admin.html";
+
+    } catch (error) {
+      loginError.textContent = error.message;
+    } finally {
+      loginButton.disabled = false;
+      loginButton.textContent = "ENTRAR NO PAINEL";
+    }
+  });
+
+  // Se já estiver logado, vai direto para o painel.
+  api("auth")
+    .then(result => {
+      if (result.authenticated) {
+        window.location.href = "/admin.html";
+      }
+    })
+    .catch(() => {});
+}
+
+// =====================================
+// PROTEÇÃO DO PAINEL
+// =====================================
+
+if (dashboardScreen) {
+  async function protectDashboard() {
+    try {
+      const result = await api("auth");
+
+      if (!result.authenticated) {
+        window.location.href = "/";
+        return;
+      }
+
+      await loadReleases();
+
+    } catch (error) {
+      window.location.href = "/";
+    }
   }
-});
 
+  protectDashboard();
+}
+
+// =====================================
 // SAIR
-document.getElementById("logout-button").addEventListener("click", async () => {
-  try {
-    await api("logout", "POST");
-    showLogin();
-  } catch (error) {
-    alert(error.message);
-  }
-});
+// =====================================
 
+const logoutButton = document.getElementById("logout-button");
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
+
+    try {
+      await api("logout", "POST");
+      window.location.href = "/";
+    } catch (error) {
+      alert(error.message);
+      logoutButton.disabled = false;
+    }
+  });
+}
+
+// =====================================
 // CALCULAR SHA-256
+// =====================================
+
 async function calculateSHA256(file) {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
@@ -88,11 +133,13 @@ async function calculateSHA256(file) {
     .join("");
 }
 
-// ELEMENTOS DA LISTA
+// =====================================
+// LISTAR VERSÕES
+// =====================================
+
 const releasesContainer = document.getElementById("releases-list");
 const releasesMessage = document.getElementById("releases-message");
 
-// LISTAR VERSÕES
 async function loadReleases() {
   if (!releasesContainer) return;
 
@@ -145,13 +192,9 @@ async function loadReleases() {
         publishButton.textContent = "PUBLICAR VERSÃO";
 
         publishButton.addEventListener("click", async () => {
-          const confirmed = confirm(
-            "Deseja realmente publicar a versão " +
-            release.version +
-            "?"
-          );
-
-          if (!confirmed) return;
+          if (!confirm("Deseja realmente publicar a versão " + release.version + "?")) {
+            return;
+          }
 
           publishButton.disabled = true;
           publishButton.textContent = "PUBLICANDO...";
@@ -162,7 +205,6 @@ async function loadReleases() {
             });
 
             alert(published.message || "Versão publicada!");
-
             await loadReleases();
 
           } catch (error) {
@@ -189,7 +231,10 @@ async function loadReleases() {
   }
 }
 
-// BOTÃO ATUALIZAR LISTA
+// =====================================
+// ATUALIZAR LISTA
+// =====================================
+
 const refreshReleasesButton =
   document.getElementById("refresh-releases");
 
@@ -197,7 +242,10 @@ if (refreshReleasesButton) {
   refreshReleasesButton.addEventListener("click", loadReleases);
 }
 
-// PUBLICAR RASCUNHO PELO FORMULÁRIO
+// =====================================
+// PUBLICAR NOVA VERSÃO
+// =====================================
+
 const releaseForm = document.getElementById("release-form");
 
 if (releaseForm) {
@@ -212,6 +260,7 @@ if (releaseForm) {
     const file = document.getElementById("release-file").files[0];
 
     message.textContent = "";
+    message.style.color = "#ff5555";
 
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       message.textContent = "Use o formato X.Y.Z. Exemplo: 1.0.0";
@@ -279,12 +328,10 @@ if (releaseForm) {
         "SUCESSO! Versão " + version + " salva como rascunho.";
 
       releaseForm.reset();
-
       await loadReleases();
 
     } catch (error) {
       console.error("[PUBLICAÇÃO]", error);
-
       message.style.color = "#ff5555";
       message.textContent = error.message ||
         "Não foi possível preparar a atualização.";
@@ -294,23 +341,4 @@ if (releaseForm) {
       button.textContent = "PREPARAR PUBLICAÇÃO";
     }
   });
-}
-
-// VERIFICAR SESSÃO
-async function checkSession() {
-  try {
-    const result = await api("auth");
-
-    if (result.authenticated) {
-      showDashboard();
-      await loadReleases();
-    } else {
-      showLogin();
     }
-  } catch {
-    showLogin();
-  }
-}
-
-checkSession();
-      
