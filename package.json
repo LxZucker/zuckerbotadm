@@ -1,0 +1,10 @@
+
+{
+  "name": "zuckerbotadm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel administrativo oficial do ZuckerBots",
+  "engines": {
+    "node": ">=20"
+  }
+}
