@@ -55,7 +55,6 @@ if (loginForm) {
       });
 
       loginForm.reset();
-
       window.location.href = "/admin.html";
 
     } catch (error) {
@@ -66,7 +65,6 @@ if (loginForm) {
     }
   });
 
-  // Se já estiver logado, vai direto para o painel.
   api("auth")
     .then(result => {
       if (result.authenticated) {
@@ -90,7 +88,10 @@ if (dashboardScreen) {
         return;
       }
 
-      await loadReleases();
+      await Promise.all([
+        loadReleases(),
+        loadCoreFiles()
+      ]);
 
     } catch (error) {
       window.location.href = "/";
@@ -232,7 +233,7 @@ async function loadReleases() {
 }
 
 // =====================================
-// ATUALIZAR LISTA
+// ATUALIZAR LISTA DE VERSÕES
 // =====================================
 
 const refreshReleasesButton =
@@ -338,7 +339,268 @@ if (releaseForm) {
 
     } finally {
       button.disabled = false;
-      button.textContent = "PREPARAR PUBLICAÇÃO";
+      button.textContent = "PREPARAR NOVA PUBLICAÇÃO ↗";
+    }
+  });
+}
+
+// =====================================
+// GERENCIADOR DO NÚCLEO
+// =====================================
+
+const coreFilesContainer =
+  document.getElementById("core-files-list");
+
+const coreFilesMessage =
+  document.getElementById("core-files-message");
+
+const coreFileForm =
+  document.getElementById("core-file-form");
+
+// =====================================
+// FORMATAR TAMANHO
+// =====================================
+
+function formatFileSize(bytes) {
+  if (!bytes) return "Tamanho desconhecido";
+
+  if (bytes < 1024) {
+    return bytes + " B";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(1) + " KB";
+  }
+
+  return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+}
+
+// =====================================
+// LISTAR ARQUIVOS DO NÚCLEO
+// =====================================
+
+async function loadCoreFiles() {
+  if (!coreFilesContainer) return;
+
+  coreFilesContainer.innerHTML = "";
+  coreFilesMessage.textContent = "Carregando arquivos do núcleo...";
+
+  try {
+    const result = await api("list_core_files");
+
+    coreFilesContainer.innerHTML = "";
+
+    if (!result.files || result.files.length === 0) {
+      coreFilesMessage.textContent =
+        "Nenhum arquivo encontrado na pasta core/.";
+      return;
+    }
+
+    coreFilesMessage.textContent =
+      result.files.length + " arquivo(s) armazenado(s).";
+
+    result.files.forEach(file => {
+      const card = document.createElement("div");
+
+      card.style.cssText = `
+        background:#090d0b;
+        border:1px solid rgba(25,230,140,.15);
+        border-radius:11px;
+        padding:14px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+        overflow-wrap:anywhere;
+      `;
+
+      const name = document.createElement("strong");
+      name.textContent = file.name;
+      name.style.color = "#fff";
+      name.style.fontSize = "13px";
+
+      const path = document.createElement("small");
+      path.textContent = file.path;
+      path.style.color = "#19e68c";
+      path.style.fontSize = "11px";
+
+      const size = document.createElement("small");
+      size.textContent = formatFileSize(file.size);
+      size.style.color = "#888";
+      size.style.fontSize = "11px";
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "EXCLUIR ARQUIVO";
+
+      deleteButton.style.cssText = `
+        background:#351316;
+        border:1px solid rgba(255,48,59,.25);
+        color:#ff626a;
+        padding:10px;
+        border-radius:8px;
+        font-size:10px;
+        font-weight:800;
+        align-self:flex-start;
+      `;
+
+      deleteButton.addEventListener("click", async () => {
+        if (!confirm(
+          "Deseja excluir este arquivo do núcleo?\n\n" + file.path
+        )) {
+          return;
+        }
+
+        deleteButton.disabled = true;
+        deleteButton.textContent = "EXCLUINDO...";
+
+        try {
+          await api("delete_core_file", "POST", {
+            storagePath: file.path
+          });
+
+          await loadCoreFiles();
+
+        } catch (error) {
+          alert(error.message);
+          deleteButton.disabled = false;
+          deleteButton.textContent = "EXCLUIR ARQUIVO";
+        }
+      });
+
+      card.appendChild(name);
+      card.appendChild(path);
+      card.appendChild(size);
+      card.appendChild(deleteButton);
+
+      coreFilesContainer.appendChild(card);
+    });
+
+  } catch (error) {
+    coreFilesMessage.textContent =
+      "Erro ao carregar arquivos: " + error.message;
+  }
+}
+
+// =====================================
+// ATUALIZAR ARQUIVOS
+// =====================================
+
+const refreshCoreFilesButton =
+  document.getElementById("refresh-core-files");
+
+if (refreshCoreFilesButton) {
+  refreshCoreFilesButton.addEventListener("click", loadCoreFiles);
+}
+
+// =====================================
+// ENVIAR OU SUBSTITUIR ARQUIVO
+// =====================================
+
+if (coreFileForm) {
+  coreFileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const pathInput =
+      document.getElementById("core-file-path");
+
+    const fileInput =
+      document.getElementById("core-file-input");
+
+    const message =
+      document.getElementById("core-file-message");
+
+    const button =
+      coreFileForm.querySelector('button[type="submit"]');
+
+    const filePath = pathInput.value.trim();
+    const file = fileInput.files[0];
+
+    message.style.color = "#ff5555";
+
+    if (!filePath) {
+      message.textContent = "Informe o caminho do arquivo.";
+      return;
+    }
+
+    if (!file) {
+      message.textContent = "Selecione um arquivo.";
+      return;
+    }
+
+    if (file.size <= 0 || file.size > 2 * 1024 * 1024) {
+      message.textContent = "O arquivo deve ter até 2 MB.";
+      return;
+    }
+
+    const allowedExtensions = [
+      ".js",
+      ".cjs",
+      ".mjs",
+      ".json",
+      ".html",
+      ".css",
+      ".md",
+      ".txt"
+    ];
+
+    const extension = filePath
+      .slice(filePath.lastIndexOf("."))
+      .toLowerCase();
+
+    if (!allowedExtensions.includes(extension)) {
+      message.textContent =
+        "Extensão não permitida. Confira o caminho informado.";
+      return;
+    }
+
+    button.disabled = true;
+
+    try {
+      message.style.color = "#19e68c";
+      message.textContent = "Preparando envio seguro...";
+      button.textContent = "PREPARANDO...";
+
+      const upload = await api("create_core_upload", "POST", {
+        filePath,
+        fileSize: file.size
+      });
+
+      message.textContent = "Enviando arquivo ao Supabase...";
+      button.textContent = "ENVIANDO...";
+
+      const response = await fetch(upload.signedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "x-upsert": "true"
+        },
+        body: file
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        console.error("[CORE UPLOAD]", details);
+
+        throw new Error("Falha ao enviar arquivo ao Supabase.");
+      }
+
+      message.textContent = "Arquivo enviado com sucesso!";
+      message.style.color = "#19e68c";
+
+      coreFileForm.reset();
+
+      await loadCoreFiles();
+
+    } catch (error) {
+      console.error("[CORE UPLOAD]", error);
+
+      message.style.color = "#ff5555";
+      message.textContent = error.message;
+
+    } finally {
+      button.disabled = false;
+      button.textContent = "ENVIAR ARQUIVO PARA O NÚCLEO ↑";
     }
   });
     }
+    
