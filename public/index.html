@@ -1,58 +1,156 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080808">
-  <title>Login | ZuckerBotADM</title>
+  <title>Painel | ZuckerBotADM</title>
   <link rel="stylesheet" href="/style.css">
+  <style>
+    :root{--bg:#08090b;--panel:#111317;--panel2:#171a20;--red:#ff3545;--red2:#c91f32;--green:#19e68c;--text:#f5f6f8;--muted:#9298a3;--line:rgba(255,255,255,.09);--gold:#ffc766}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(ellipse at 50% -18%,rgba(255,48,59,.16),transparent 48%),var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer;transition:transform .18s,border-color .18s,filter .18s,background .18s}
+    button:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08)}
+    button:disabled{opacity:.55;cursor:wait;transform:none}
+    .container{width:min(100% - 28px,1050px);margin:auto;padding:24px 0 56px}
+    .dashboard{display:flex;flex-direction:column;gap:22px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 17px;background:rgba(17,19,23,.92);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(12px)}
+    .brand{font-size:17px;font-weight:900;letter-spacing:.3px}.brand span:first-child{color:var(--red);text-shadow:0 0 14px #ff354577}.brand span:nth-child(2){color:var(--green);text-shadow:0 0 14px #19e68c66}
+    .logout,.secondary-button,.action-button{border:1px solid var(--line);background:#20232a;color:#e9ebef;border-radius:10px;padding:10px 14px;font-size:11px;font-weight:850;letter-spacing:.45px}
+    .welcome{padding:12px 5px 3px}.eyebrow{color:var(--red);font-size:10px;font-weight:900;letter-spacing:1.8px;margin:0 0 9px}
+    .welcome h1{font-size:clamp(29px,6vw,43px);line-height:1.08;margin:0 0 11px;font-weight:950;letter-spacing:-1.2px}.welcome h1 span{color:var(--red)}.welcome>p:last-child{color:var(--muted);font-size:14px;margin:0}
+    .panel-card{min-width:0;background:linear-gradient(145deg,#15181e,#101216 72%);border:1px solid var(--line);border-radius:19px;padding:23px;box-shadow:0 12px 35px #0003}
+    .panel-card h2{font-size:19px;margin:0 0 8px;letter-spacing:-.25px}.panel-card>p{color:var(--muted);font-size:13px;line-height:1.6}
+    .release-section{position:relative;overflow:hidden;border-color:#ff35453d;background:radial-gradient(ellipse at 100% 0%,#ff35451c,transparent 48%),linear-gradient(145deg,#1a1317,#101216 68%);padding:26px}
+    .release-section:before{content:"";position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,var(--red),#8d1720,transparent)}
+    .release-heading{display:flex;align-items:flex-start;gap:15px;margin-bottom:20px}.release-heading .card-icon{flex:none;margin:0;width:50px;height:50px;font-size:25px}
+    .release-heading h2{font-size:21px;margin:1px 0 7px}.release-heading p:last-child{color:var(--muted);font-size:13px;line-height:1.5;margin:0}
+    .card-icon{width:43px;height:43px;display:grid;place-items:center;background:#ff35451a;color:var(--red);border:1px solid #ff354533;border-radius:13px;font-size:21px;margin-bottom:16px}
+    .release-tag{display:inline-flex;align-items:center;gap:8px;color:var(--green);background:#19e68c12;border:1px solid #19e68c30;border-radius:30px;padding:7px 11px;font-size:10px;font-weight:900;letter-spacing:.7px;margin-bottom:19px}
+    .release-tag:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green)}
+    .release-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{display:flex;flex-direction:column;gap:9px;margin-bottom:17px;min-width:0}
+    .field label{color:#dfe2e8;font-size:11px;font-weight:900;letter-spacing:.65px}
+    .field input:not([type=file]),.field textarea{width:100%;color:#fff;background:#090b0e;border:1px solid #30343d;border-radius:11px;padding:14px;outline:none;font-size:13px;transition:.2s}
+    .field input:focus,.field textarea:focus{border-color:var(--red);box-shadow:0 0 0 3px #ff35451a}.field textarea{resize:vertical;min-height:120px;line-height:1.55}
+    .upload-area{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:145px;background:#090b0e99;border:1px dashed #555d69;border-radius:14px;padding:18px;text-align:center;cursor:pointer;transition:.2s}
+    .upload-area:hover,.upload-area.is-selected{border-color:var(--red);background:#ff35450b}.upload-icon{font-size:28px;margin-bottom:9px}.upload-area strong{font-size:13px;margin-bottom:6px}.upload-area small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+    .upload-area input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+    .release-info{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 18px}.info-chip{padding:8px 11px;border:1px solid var(--line);background:#0004;border-radius:9px;color:#aeb4bf;font-size:10px}.info-chip strong{color:#fff}
+    #publish-button,.primary-button{width:100%;border:0;border-radius:12px;background:linear-gradient(105deg,#ff3d4d,#c91f32);color:#fff;padding:15px 18px;font-size:12px;font-weight:950;letter-spacing:.8px;box-shadow:0 8px 24px #ff354526}
+    #publish-button:disabled,.primary-button:disabled{opacity:.6}
+    #release-message,#core-file-message,#core-files-message,#releases-message{font-size:12px;line-height:1.5;margin:0 0 13px;color:var(--muted)}
+    .section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.section-heading h2{margin:0}.section-heading .eyebrow{margin-bottom:7px}
+    #releases-list,#core-files-list{display:grid;gap:12px}
+    .release-item{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 18px;align-items:start;padding:17px;background:linear-gradient(145deg,#191c22,#111419);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .release-item:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#747b88}
+    .release-item.is-published:before{background:var(--green)}.release-item.is-draft:before{background:var(--gold)}
+    .release-main{min-width:0}.release-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px}.release-title{font-size:16px;font-weight:900;margin:0}
+    .release-status{display:inline-flex;align-items:center;gap:6px;border-radius:30px;padding:6px 9px;font-size:9px;font-weight:950;letter-spacing:.65px}
+    .release-status.published{color:var(--green);background:#19e68c14;border:1px solid #19e68c30}.release-status.draft{color:var(--gold);background:#ffc76612;border:1px solid #ffc76630}
+    .release-date{color:#858c98;font-size:10px;margin:0 0 10px}.release-notes{color:#c3c8d1;font-size:12px;line-height:1.55;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+    .release-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;align-self:center}.publish-release-button{border:0;border-radius:10px;background:linear-gradient(105deg,#19c982,#087d52);color:#041b12;padding:11px 14px;font-size:10px;font-weight:950;letter-spacing:.5px;white-space:nowrap;box-shadow:0 6px 18px #19e68c1c}
+    .empty-state{padding:25px 16px;text-align:center;border:1px dashed #343943;border-radius:13px;color:var(--muted);font-size:12px}
+    .core-section{border-color:#19e68c30;background:radial-gradient(ellipse at 100% 0%,#19e68c12,transparent 48%),linear-gradient(145deg,#111a16,#101216 68%)}
+    .core-section .card-icon{color:var(--green);background:#19e68c14;border-color:#19e68c33}.core-section .eyebrow{color:var(--green)}
+    .core-upload{background:#090d0b88;border:1px solid var(--line);border-radius:14px;padding:17px;margin-top:18px}
+    .core-upload .primary-button{background:linear-gradient(105deg,#19c982,#087d52);color:#041b12;box-shadow:0 7px 20px #19e68c1c}
+    .core-path-hint{color:var(--muted);font-size:11px;line-height:1.6;margin:0}
+    .core-file-card{background:#090d0b;border:1px solid #19e68c2b;border-radius:13px;padding:15px;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
+    .core-file-name{color:#fff;font-size:13px;font-weight:850}.core-file-path{color:var(--green);font-size:11px}.core-file-size{color:var(--muted);font-size:11px}
+    .delete-file-button{background:#351316;border:1px solid #ff354544;color:#ff747d;padding:10px 12px;border-radius:9px;font-size:10px;font-weight:900;align-self:flex-start;margin-top:4px}
+    .core-section .section-heading{margin-top:26px}
+    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.cards .panel-card{min-height:175px}
+    .status{display:inline-flex;margin-top:12px;padding:7px 10px;border-radius:7px;background:#ffffff0d;color:#a6acb6;font-size:9px;font-weight:900;letter-spacing:.8px}
+    .footer{text-align:center;color:#59606b;font-size:10px;padding:10px}
+    @media(max-width:650px){.container{width:min(100% - 20px,1050px);padding-top:12px}.panel-card{padding:18px}.release-section{padding:19px}.release-grid,.cards{grid-template-columns:1fr}.section-heading{align-items:flex-start}.release-heading h2{font-size:19px}.release-item{grid-template-columns:1fr}.release-actions{justify-content:flex-start}.publish-release-button{width:100%;padding:13px}.topbar{padding:12px 13px}}
+  </style>
 </head>
 <body>
-  <main class="container">
+<main class="container">
+  <section id="dashboard-screen" class="dashboard">
+    <header class="topbar">
+      <div class="brand"><span>Z</span><span>B</span> ZuckerBotADM</div>
+      <button id="logout-button" class="logout" type="button">SAIR ↗</button>
+    </header>
 
-    <section id="login-screen" class="login-card">
-      <div class="logo">
-        <span class="logo-z">Z</span><span class="logo-b">B</span>
+    <div class="welcome">
+      <p class="eyebrow">CENTRAL ADMINISTRATIVA</p>
+      <h1>Central de <span>controle.</span></h1>
+      <p>Gerencie o núcleo, as versões e a distribuição do ZuckerBots.</p>
+    </div>
+
+    <section class="panel-card release-section">
+      <div class="release-heading">
+        <div class="card-icon">↻</div>
+        <div><p class="eyebrow">DISTRIBUIÇÃO DO SISTEMA</p><h2>Publicar atualização</h2><p>Prepare uma nova versão oficial para os dispositivos conectados.</p></div>
       </div>
-
-      <p class="eyebrow">CENTRAL DE CONTROLE</p>
-      <h1>ZuckerBot<span>ADM</span></h1>
-      <p class="subtitle">Acesso restrito ao administrador</p>
-
-      <form id="login-form">
-        <label for="username">Usuário</label>
-        <input
-          id="username"
-          type="text"
-          autocomplete="username"
-          placeholder="Seu usuário"
-          required
-        >
-
-        <label for="password">Senha</label>
-        <input
-          id="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Sua senha"
-          required
-        >
-
-        <p id="login-error" class="error"></p>
-
-        <button id="login-button" type="submit">
-          ENTRAR NO PAINEL
-        </button>
+      <span class="release-tag">GERENCIADOR DE VERSÕES</span>
+      <form id="release-form">
+        <div class="release-grid">
+          <div class="field">
+            <label for="release-version">VERSÃO DO SISTEMA</label>
+            <input id="release-version" type="text" placeholder="Ex.: 10.3.3" pattern="[0-9]+\.[0-9]+\.[0-9]+" required>
+          </div>
+          <div class="field">
+            <label for="release-file">PACOTE OFICIAL (.ZIP)</label>
+            <label class="upload-area" id="release-upload-area" for="release-file">
+              <div class="upload-icon">📦</div><strong id="release-file-label">Selecionar pacote ZIP</strong><small id="release-file-hint">Toque para escolher o arquivo · até 50 MB</small>
+              <input id="release-file" type="file" accept=".zip,application/zip" required>
+            </label>
+          </div>
+        </div>
+        <div class="field"><label for="release-notes">NOVIDADES DESTA VERSÃO</label><textarea id="release-notes" rows="5" placeholder="Descreva as melhorias, correções e novidades desta atualização..."></textarea></div>
+        <div class="release-info"><span class="info-chip">Formato: <strong>ZIP</strong></span><span class="info-chip">Limite: <strong>50 MB</strong></span><span class="info-chip">Integridade: <strong>SHA-256</strong></span></div>
+        <p id="release-message" aria-live="polite"></p>
+        <button id="publish-button" type="submit">PREPARAR NOVA PUBLICAÇÃO <span>↗</span></button>
       </form>
-
-      <p class="security-note">
-        ACESSO PROTEGIDO · ZUCKERBOTS
-      </p>
     </section>
 
-  </main>
+    <section class="panel-card releases-section">
+      <div class="section-heading">
+        <div><p class="eyebrow">CONTROLE DE DISTRIBUIÇÃO</p><h2>Histórico de versões</h2></div>
+        <button id="refresh-releases" type="button" class="secondary-button">↻ ATUALIZAR</button>
+      </div>
+      <p id="releases-message" aria-live="polite"></p>
+      <div id="releases-list"></div>
+    </section>
 
-  <script src="/admin.js"></script>
+    <section class="panel-card core-section">
+      <div class="release-heading">
+        <div class="card-icon">⌘</div>
+        <div><p class="eyebrow">ARQUIVOS CENTRAIS</p><h2>Gerenciador do núcleo</h2><p>Envie, substitua e organize os arquivos principais do ZuckerBots.</p></div>
+      </div>
+      <span class="release-tag">ARMAZENAMENTO SUPABASE</span>
+      <div class="core-upload">
+        <form id="core-file-form">
+          <div class="field">
+            <label for="core-file-path">CAMINHO DO ARQUIVO</label>
+            <input id="core-file-path" type="text" placeholder="Ex.: bot.js ou modules/comandos.js" required>
+            <p class="core-path-hint">Use caminhos relativos. Exemplo: modules/boas-vindas.js. Os arquivos ficam armazenados dentro de core/.</p>
+          </div>
+          <div class="field"><label for="core-file-input">SELECIONAR ARQUIVO</label><input id="core-file-input" type="file" accept=".js,.cjs,.mjs,.json,.html,.css,.md,.txt" required></div>
+          <p id="core-file-message" aria-live="polite"></p>
+          <button class="primary-button" type="submit">ENVIAR ARQUIVO PARA O NÚCLEO ↑</button>
+        </form>
+      </div>
+      <div class="section-heading">
+        <div><p class="eyebrow">SUPABASE STORAGE / CORE</p><h2>Arquivos armazenados</h2></div>
+        <button id="refresh-core-files" type="button" class="secondary-button">↻ ATUALIZAR</button>
+      </div>
+      <p id="core-files-message">Aguardando carregamento dos arquivos.</p>
+      <div id="core-files-list"></div>
+    </section>
+
+    <div class="cards">
+      <article class="panel-card"><div class="card-icon">▣</div><p class="eyebrow">CONEXÕES</p><h2>Dispositivos</h2><p>Acompanhe os dispositivos conectados ao ZuckerBots.</p><span class="status">EM CONSTRUÇÃO</span></article>
+      <article class="panel-card"><div class="card-icon">⚙</div><p class="eyebrow">ADMINISTRAÇÃO</p><h2>Sistema</h2><p>Gerencie as configurações administrativas.</p><span class="status">EM CONSTRUÇÃO</span></article>
+    </div>
+    <p class="footer">ZuckerBotADM · CENTRAL DE GERENCIAMENTO</p>
+  </section>
+</main>
+<script src="/admin.js"></script>
 </body>
-</html>
+            </html>
+            
