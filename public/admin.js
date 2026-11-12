@@ -58,6 +58,7 @@ loginForm.addEventListener("submit", async (event) => {
 
     loginForm.reset();
     showDashboard();
+    await loadReleases();
 
   } catch (error) {
     loginError.textContent = error.message;
@@ -87,7 +88,116 @@ async function calculateSHA256(file) {
     .join("");
 }
 
-// PUBLICAR RASCUNHO
+// ELEMENTOS DA LISTA
+const releasesContainer = document.getElementById("releases-list");
+const releasesMessage = document.getElementById("releases-message");
+
+// LISTAR VERSÕES
+async function loadReleases() {
+  if (!releasesContainer) return;
+
+  releasesContainer.innerHTML = "<p>Carregando versões...</p>";
+
+  if (releasesMessage) {
+    releasesMessage.textContent = "";
+  }
+
+  try {
+    const result = await api("list_releases");
+
+    releasesContainer.innerHTML = "";
+
+    if (!result.releases || result.releases.length === 0) {
+      releasesContainer.innerHTML =
+        "<p>Nenhuma versão cadastrada ainda.</p>";
+      return;
+    }
+
+    result.releases.forEach(release => {
+      const card = document.createElement("div");
+      card.className = "release-item";
+
+      const title = document.createElement("h3");
+      title.textContent = "Versão " + release.version;
+
+      const status = document.createElement("p");
+      status.textContent =
+        "Status: " +
+        (release.status === "published" ? "PUBLICADA" : "RASCUNHO");
+
+      const date = document.createElement("p");
+      date.textContent = release.created_at
+        ? "Criada em: " + new Date(release.created_at).toLocaleString("pt-BR")
+        : "";
+
+      const notes = document.createElement("p");
+      notes.textContent = release.release_notes || "Sem descrição.";
+
+      card.appendChild(title);
+      card.appendChild(status);
+      card.appendChild(date);
+      card.appendChild(notes);
+
+      if (release.status !== "published") {
+        const publishButton = document.createElement("button");
+
+        publishButton.type = "button";
+        publishButton.textContent = "PUBLICAR VERSÃO";
+
+        publishButton.addEventListener("click", async () => {
+          const confirmed = confirm(
+            "Deseja realmente publicar a versão " +
+            release.version +
+            "?"
+          );
+
+          if (!confirmed) return;
+
+          publishButton.disabled = true;
+          publishButton.textContent = "PUBLICANDO...";
+
+          try {
+            const published = await api("publish_release", "POST", {
+              id: String(release.id)
+            });
+
+            alert(published.message || "Versão publicada!");
+
+            await loadReleases();
+
+          } catch (error) {
+            alert(error.message);
+            publishButton.disabled = false;
+            publishButton.textContent = "PUBLICAR VERSÃO";
+          }
+        });
+
+        card.appendChild(publishButton);
+      }
+
+      releasesContainer.appendChild(card);
+    });
+
+  } catch (error) {
+    releasesContainer.innerHTML = "";
+
+    if (releasesMessage) {
+      releasesMessage.textContent = error.message;
+    } else {
+      releasesContainer.textContent = error.message;
+    }
+  }
+}
+
+// BOTÃO ATUALIZAR LISTA
+const refreshReleasesButton =
+  document.getElementById("refresh-releases");
+
+if (refreshReleasesButton) {
+  refreshReleasesButton.addEventListener("click", loadReleases);
+}
+
+// PUBLICAR RASCUNHO PELO FORMULÁRIO
 const releaseForm = document.getElementById("release-form");
 
 if (releaseForm) {
@@ -121,13 +231,11 @@ if (releaseForm) {
     button.disabled = true;
 
     try {
-      // 1. CALCULAR HASH
       message.textContent = "Calculando integridade do pacote...";
       button.textContent = "CALCULANDO...";
 
       const sha256 = await calculateSHA256(file);
 
-      // 2. SOLICITAR AUTORIZAÇÃO
       message.textContent = "Preparando armazenamento seguro...";
       button.textContent = "PREPARANDO ENVIO...";
 
@@ -137,7 +245,6 @@ if (releaseForm) {
         fileSize: file.size
       });
 
-      // 3. ENVIAR ZIP DIRETAMENTE AO SUPABASE
       message.textContent = "Enviando pacote ao Supabase...";
       button.textContent = "ENVIANDO ZIP...";
 
@@ -156,7 +263,6 @@ if (releaseForm) {
         throw new Error("Falha no envio do ZIP ao Supabase.");
       }
 
-      // 4. REGISTRAR VERSÃO NO BANCO
       message.textContent = "Registrando versão no banco de dados...";
       button.textContent = "REGISTRANDO...";
 
@@ -168,12 +274,13 @@ if (releaseForm) {
         releaseNotes: notes
       });
 
+      message.style.color = "#36e58a";
       message.textContent =
         "SUCESSO! Versão " + version + " salva como rascunho.";
 
-      message.style.color = "#36e58a";
-
       releaseForm.reset();
+
+      await loadReleases();
 
     } catch (error) {
       console.error("[PUBLICAÇÃO]", error);
@@ -196,6 +303,7 @@ async function checkSession() {
 
     if (result.authenticated) {
       showDashboard();
+      await loadReleases();
     } else {
       showLogin();
     }
@@ -205,4 +313,4 @@ async function checkSession() {
 }
 
 checkSession();
-    
+      
