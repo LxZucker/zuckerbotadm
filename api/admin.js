@@ -142,6 +142,90 @@ function storagePathUrl(path) {
     .join("/");
 }
 
+// LISTAR ARQUIVOS RECURSIVAMENTE
+async function listCoreFilesRecursive(prefix = "core", depth = 0) {
+  if (depth > 20) {
+    throw new Error("Profundidade máxima de pastas excedida.");
+  }
+
+  const files = [];
+  let offset = 0;
+  const limit = 1000;
+
+  while (true) {
+    const response = await supabaseRequest(
+      `/storage/v1/object/list/${BUCKET}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prefix,
+          limit,
+          offset,
+          sortBy: {
+            column: "name",
+            order: "asc"
+          }
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("[CORE DIRECTORY]", prefix, result);
+
+      throw new Error(
+        result.message ||
+        result.error ||
+        "Erro ao consultar pasta do núcleo."
+      );
+    }
+
+    if (!Array.isArray(result)) {
+      throw new Error("Resposta inválida do Storage.");
+    }
+
+    for (const item of result) {
+      if (!item || !item.name) continue;
+
+      const name = item.name;
+
+      const fullPath = name.startsWith(prefix + "/")
+        ? name
+        : `${prefix}/${name}`;
+
+      const isFolder =
+        item.id == null &&
+        item.metadata == null;
+
+      if (isFolder) {
+        const nestedFiles = await listCoreFilesRecursive(
+          fullPath,
+          depth + 1
+        );
+
+        files.push(...nestedFiles);
+      } else {
+        files.push({
+          name: name.split("/").pop(),
+          path: fullPath,
+          size: Number(item.metadata?.size || 0),
+          updatedAt: item.updated_at || item.created_at || null
+        });
+      }
+    }
+
+    if (result.length < limit) break;
+
+    offset += limit;
+  }
+
+  return files;
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
 
@@ -540,44 +624,7 @@ module.exports = async (req, res) => {
   // LISTAR ARQUIVOS DO NÚCLEO
   if (action === "list_core_files" && req.method === "GET") {
     try {
-      const response = await supabaseRequest(
-        `/storage/v1/object/list/${BUCKET}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prefix: "core",
-            limit: 1000,
-            offset: 0,
-            sortBy: {
-              column: "name",
-              order: "asc"
-            }
-          })
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("[LIST CORE FILES]", result);
-
-        return res.status(502).json({
-          error: "Não foi possível listar os arquivos do núcleo.",
-          details: result.message || result.error || "Erro no Storage"
-        });
-      }
-
-      const files = (Array.isArray(result) ? result : [])
-        .filter(item => item && item.id)
-        .map(item => ({
-          name: item.name,
-          path: `${CORE_PREFIX}${item.name}`,
-          size: Number(item.metadata?.size || 0),
-          updatedAt: item.updated_at || item.created_at || null
-        }));
+      const files = await listCoreFilesRecursive("core");
 
       return res.status(200).json({
         success: true,
@@ -587,8 +634,9 @@ module.exports = async (req, res) => {
     } catch (error) {
       console.error("[LIST CORE FILES]", error);
 
-      return res.status(500).json({
-        error: "Erro ao buscar arquivos do núcleo."
+      return res.status(502).json({
+        error: "Não foi possível listar os arquivos do núcleo.",
+        details: error.message
       });
     }
   }
@@ -729,4 +777,4 @@ module.exports = async (req, res) => {
     receivedMethod: req.method
   });
 };
-    
+  
