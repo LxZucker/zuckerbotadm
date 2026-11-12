@@ -66,6 +66,24 @@ function verifySession(req, secret) {
   }
 }
 
+async function supabaseRequest(path, options = {}) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Variáveis do Supabase não configuradas");
+  }
+
+  return fetch(`${url}${path}`, {
+    ...options,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      ...(options.headers || {})
+    }
+  });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
 
@@ -77,9 +95,10 @@ module.exports = async (req, res) => {
     });
   }
 
-  const action = req.method === "GET"
-    ? req.query?.action
-    : req.body?.action;
+  // RECONHECER OPERAÇÃO PELA URL OU PELO CORPO
+  const action =
+    req.query?.action ||
+    req.body?.action;
 
   // LOGIN
   if (action === "login" && req.method === "POST") {
@@ -151,7 +170,7 @@ module.exports = async (req, res) => {
     });
   }
 
-  // TODAS AS OUTRAS OPERAÇÕES EXIGEM LOGIN
+  // PROTEGER TODAS AS OUTRAS OPERAÇÕES
   const session = verifySession(req, secret);
 
   if (!session) {
@@ -160,33 +179,18 @@ module.exports = async (req, res) => {
     });
   }
 
-  // TESTAR CONEXÃO COM SUPABASE
+  const supabaseUrl = process.env.SUPABASE_URL;
+
+  // TESTAR SUPABASE
   if (action === "supabase_test" && req.method === "GET") {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        return res.status(500).json({
-          error: "Variáveis do Supabase não configuradas"
-        });
-      }
-
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/bot_releases?select=id,version,status,created_at&order=created_at.desc`,
-        {
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`
-          }
-        }
+      const response = await supabaseRequest(
+        "/rest/v1/bot_releases?select=id,version,status,created_at&order=created_at.desc"
       );
 
       const result = await response.json();
 
       if (!response.ok) {
-        console.error("[SUPABASE]", result);
-
         return res.status(502).json({
           error: "O Supabase recusou a consulta",
           details: result.message || result.error || "Erro desconhecido"
@@ -198,7 +202,6 @@ module.exports = async (req, res) => {
         message: "Conexão com Supabase estabelecida!",
         releases: result
       });
-
     } catch (error) {
       console.error("[SUPABASE]", error);
 
@@ -208,7 +211,183 @@ module.exports = async (req, res) => {
     }
   }
 
+  // GERAR AUTORIZAÇÃO TEMPORÁRIA DE UPLOAD
+  if (action === "create_upload" && req.method === "POST") {
+    try {
+      const { version, fileName, fileSize } = req.body || {};
+
+      if (
+        typeof version !== "string" ||
+        !/^\d+\.\d+\.\d+$/.test(version)
+      ) {
+        return res.status(400).json({
+          error: "Versão inválida. Use X.Y.Z."
+        });
+      }
+
+      if (
+        typeof fileName !== "string" ||
+        !fileName.toLowerCase().endsWith(".zip")
+      ) {
+        return res.status(400).json({
+          error: "O arquivo precisa ser ZIP."
+        });
+      }
+
+      if (
+        !Number.isSafeInteger(fileSize) ||
+        fileSize <= 0 ||
+        fileSize > 50 * 1024 * 1024
+      ) {
+        return res.status(400).json({
+          error: "O ZIP deve ter até 50 MB."
+        });
+      }
+
+      const storagePath =
+        `releases/${version}/${crypto.randomUUID()}.zip`;
+
+      const response = await supabaseRequest(
+        `/storage/v1/object/upload/sign/zuckerbots-releases/${storagePath}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({})
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.url) {
+        console.error("[STORAGE SIGN]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível preparar o envio do ZIP.",
+          details: result.message || result.error || "Erro no Storage"
+        });
+      }
+
+      const signedUrl = result.url.startsWith("http")
+        ? result.url
+        : `${supabaseUrl}/storage/v1${result.url}`;
+
+      return res.status(200).json({
+        success: true,
+        storagePath,
+        signedUrl
+      });
+
+    } catch (error) {
+      console.error("[CREATE UPLOAD]", error);
+
+      return res.status(500).json({
+        error: "Erro ao preparar o envio."
+      });
+    }
+  }
+
+  // REGISTRAR VERSÃO COMO RASCUNHO
+  if (action === "save_release" && req.method === "POST") {
+    try {
+      const {
+        version,
+        storagePath,
+        sha256,
+        packageSize,
+        releaseNotes
+      } = req.body || {};
+
+      if (
+        typeof version !== "string" ||
+        !/^\d+\.\d+\.\d+$/.test(version)
+      ) {
+        return res.status(400).json({
+          error: "Versão inválida."
+        });
+      }
+
+      if (
+        typeof storagePath !== "string" ||
+        !storagePath.startsWith(`releases/${version}/`) ||
+        !storagePath.endsWith(".zip")
+      ) {
+        return res.status(400).json({
+          error: "Caminho do pacote inválido."
+        });
+      }
+
+      if (
+        typeof sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/i.test(sha256)
+      ) {
+        return res.status(400).json({
+          error: "Hash SHA-256 inválido."
+        });
+      }
+
+      if (
+        !Number.isSafeInteger(packageSize) ||
+        packageSize <= 0 ||
+        packageSize > 50 * 1024 * 1024
+      ) {
+        return res.status(400).json({
+          error: "Tamanho do pacote inválido."
+        });
+      }
+
+      const response = await supabaseRequest(
+        "/rest/v1/bot_releases",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify({
+            version,
+            storage_path: storagePath,
+            sha256: sha256.toLowerCase(),
+            package_size: packageSize,
+            release_notes: String(releaseNotes || "").slice(0, 5000),
+            status: "draft"
+          })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[SAVE RELEASE]", result);
+
+        return res.status(400).json({
+          error: result.code === "23505"
+            ? "Essa versão já existe."
+            : "Não foi possível registrar a versão.",
+          details: result.message || result.error || "Erro desconhecido"
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Versão salva como rascunho.",
+        release: result[0]
+      });
+
+    } catch (error) {
+      console.error("[SAVE RELEASE]", error);
+
+      return res.status(500).json({
+        error: "Erro ao registrar a versão."
+      });
+    }
+  }
+
   return res.status(404).json({
-    error: "Operação não encontrada"
+    error: "Operação não encontrada",
+    receivedAction: action || null,
+    receivedMethod: req.method
   });
 };
+                                              
