@@ -771,6 +771,39 @@ module.exports = async (req, res) => {
     }
   }
 
+  // ==========================================
+  // DISPOSITIVOS CONECTADOS
+  // ==========================================
+  if (action === "list_devices" && req.method === "GET") {
+    try {
+      const response = await supabaseRequest(
+        "/rest/v1/devices?select=id,user_id,device_name,status,last_seen,whatsapp_connected&order=last_seen.desc"
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[LIST DEVICES]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível consultar os dispositivos."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        devices: result
+      });
+
+    } catch (error) {
+      console.error("[LIST DEVICES]", error);
+
+      return res.status(500).json({
+        error: "Erro ao buscar dispositivos."
+      });
+    }
+  }
+  
   return res.status(404).json({
     error: "Operação não encontrada",
     receivedAction: action || null,
