@@ -565,5 +565,4 @@ if (refreshDevicesButton) {
 
 if (devicesList) {
   loadDevices();
-  setInterval(loadDevices, 15000);
 }
