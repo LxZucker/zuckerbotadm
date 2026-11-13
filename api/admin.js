@@ -888,7 +888,8 @@ module.exports = async (req, res) => {
         result.map(device => device.user_id).filter(Boolean)
       )];
 
-      const accountNames = {};
+
+      const accountInfo = {};
 
       await Promise.all(userIds.map(async userId => {
         try {
@@ -905,20 +906,37 @@ module.exports = async (req, res) => {
           if (!userResponse.ok) return;
 
           const userData = await userResponse.json();
+          const metadata = userData.user_metadata || {};
+          const suspendedUntil = metadata.zucker_suspended_until || null;
+          const suspendedTime = suspendedUntil
+            ? new Date(suspendedUntil).getTime()
+            : 0;
 
-          accountNames[userId] =
-            userData.user_metadata?.username ||
-            "Não identificado";
+          accountInfo[userId] = {
+            account_name: metadata.username || "Não identificado",
+            suspended: Number.isFinite(suspendedTime) &&
+              suspendedTime > Date.now(),
+            suspended_until: suspendedUntil,
+            suspension_remaining_ms: Number.isFinite(suspendedTime)
+              ? Math.max(0, suspendedTime - Date.now())
+              : 0
+          };
 
         } catch (error) {
-          console.error("[DEVICE ACCOUNT NAME]", error);
+          console.error("[DEVICE ACCOUNT INFO]", error);
         }
       }));
 
       const devices = result.map(device => ({
         ...device,
-        account_name: accountNames[device.user_id] || "Não identificado"
+        ...(accountInfo[device.user_id] || {
+          account_name: "Não identificado",
+          suspended: false,
+          suspended_until: null,
+          suspension_remaining_ms: 0
+        })
       }));
+
 
       return res.status(200).json({
         success: true,
