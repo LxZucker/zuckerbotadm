@@ -648,7 +648,7 @@ if (!reason) {
   if (device.suspended) {
     card.append(releaseButton);
   } else {
-    card.append(minutesInput, suspendButton);
+    card.append(reasonInput, minutesInput, suspendButton);
   }
 
   devicesList.appendChild(card);
