@@ -772,6 +772,7 @@ module.exports = async (req, res) => {
   }
 
   
+  
   // ==========================================
   // SUSPENSÃO DE CONTAS
   // ==========================================
@@ -783,6 +784,7 @@ module.exports = async (req, res) => {
     try {
       const { userId } = req.body || {};
       const minutes = Number(req.body?.minutes);
+      const reason = String(req.body?.reason || "").trim();
 
       if (
         typeof userId !== "string" ||
@@ -798,6 +800,18 @@ module.exports = async (req, res) => {
       ) {
         return res.status(400).json({
           error: "Informe uma duração entre 1 e 43200 minutos."
+        });
+      }
+
+      if (action === "suspend_user" && !reason) {
+        return res.status(400).json({
+          error: "Informe o motivo da suspensão."
+        });
+      }
+
+      if (reason.length > 500) {
+        return res.status(400).json({
+          error: "O motivo pode ter no máximo 500 caracteres."
         });
       }
 
@@ -827,9 +841,11 @@ module.exports = async (req, res) => {
         ).toISOString();
 
         userMetadata.zucker_suspended_at = new Date().toISOString();
+        userMetadata.zucker_suspension_reason = reason;
       } else {
         userMetadata.zucker_suspended_until = null;
         userMetadata.zucker_suspended_at = null;
+        userMetadata.zucker_suspension_reason = null;
       }
 
       const updateResponse = await fetch(userUrl, {
@@ -854,7 +870,8 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         success: true,
         suspended: action === "suspend_user",
-        suspended_until: userMetadata.zucker_suspended_until
+        suspended_until: userMetadata.zucker_suspended_until,
+        reason: userMetadata.zucker_suspension_reason
       });
     } catch (error) {
       console.error("[USER SUSPENSION]", error);
@@ -863,6 +880,7 @@ module.exports = async (req, res) => {
       });
     }
   }
+  
   
   // ==========================================
   // DISPOSITIVOS CONECTADOS
