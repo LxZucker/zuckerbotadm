@@ -771,6 +771,99 @@ module.exports = async (req, res) => {
     }
   }
 
+  
+  // ==========================================
+  // SUSPENSÃO DE CONTAS
+  // ==========================================
+
+  if (
+    (action === "suspend_user" || action === "unsuspend_user") &&
+    req.method === "POST"
+  ) {
+    try {
+      const { userId } = req.body || {};
+      const minutes = Number(req.body?.minutes);
+
+      if (
+        typeof userId !== "string" ||
+        !userId.trim() ||
+        userId.length > 100
+      ) {
+        return res.status(400).json({ error: "Conta inválida." });
+      }
+
+      if (
+        action === "suspend_user" &&
+        (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200)
+      ) {
+        return res.status(400).json({
+          error: "Informe uma duração entre 1 e 43200 minutos."
+        });
+      }
+
+      const userUrl =
+        `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
+
+      const userResponse = await fetch(userUrl, {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      });
+
+      const userData = await userResponse.json().catch(() => ({}));
+
+      if (!userResponse.ok) {
+        return res.status(userResponse.status === 404 ? 404 : 502).json({
+          error: "Não foi possível localizar a conta."
+        });
+      }
+
+      const userMetadata = { ...(userData.user_metadata || {}) };
+
+      if (action === "suspend_user") {
+        userMetadata.zucker_suspended_until = new Date(
+          Date.now() + minutes * 60 * 1000
+        ).toISOString();
+
+        userMetadata.zucker_suspended_at = new Date().toISOString();
+      } else {
+        userMetadata.zucker_suspended_until = null;
+        userMetadata.zucker_suspended_at = null;
+      }
+
+      const updateResponse = await fetch(userUrl, {
+        method: "PUT",
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_metadata: userMetadata })
+      });
+
+      const updatedUser = await updateResponse.json().catch(() => ({}));
+
+      if (!updateResponse.ok) {
+        console.error("[UPDATE USER SUSPENSION]", updatedUser);
+        return res.status(502).json({
+          error: "Não foi possível atualizar a suspensão da conta."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        suspended: action === "suspend_user",
+        suspended_until: userMetadata.zucker_suspended_until
+      });
+    } catch (error) {
+      console.error("[USER SUSPENSION]", error);
+      return res.status(500).json({
+        error: "Erro ao alterar a suspensão da conta."
+      });
+    }
+  }
+  
   // ==========================================
   // DISPOSITIVOS CONECTADOS
   // ==========================================
