@@ -775,6 +775,8 @@ module.exports = async (req, res) => {
   // DISPOSITIVOS CONECTADOS
   // ==========================================
   if (action === "list_devices" && req.method === "GET") {
+  
+  if (action === "list_devices" && req.method === "GET") {
     try {
       const response = await supabaseRequest(
         "/rest/v1/devices?select=id,user_id,device_name,status,last_seen,whatsapp_connected&order=last_seen.desc"
@@ -790,9 +792,45 @@ module.exports = async (req, res) => {
         });
       }
 
+      const userIds = [...new Set(
+        result.map(device => device.user_id).filter(Boolean)
+      )];
+
+      const accountNames = {};
+
+      await Promise.all(userIds.map(async userId => {
+        try {
+          const userResponse = await fetch(
+            `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
+            {
+              headers: {
+                apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+              }
+            }
+          );
+
+          if (!userResponse.ok) return;
+
+          const userData = await userResponse.json();
+
+          accountNames[userId] =
+            userData.user_metadata?.username ||
+            "Não identificado";
+
+        } catch (error) {
+          console.error("[DEVICE ACCOUNT NAME]", error);
+        }
+      }));
+
+      const devices = result.map(device => ({
+        ...device,
+        account_name: accountNames[device.user_id] || "Não identificado"
+      }));
+
       return res.status(200).json({
         success: true,
-        devices: result
+        devices
       });
 
     } catch (error) {
@@ -803,6 +841,7 @@ module.exports = async (req, res) => {
       });
     }
   }
+
   
   return res.status(404).json({
     error: "Operação não encontrada",
