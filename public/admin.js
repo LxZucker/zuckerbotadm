@@ -597,9 +597,10 @@ if (!reason) {
 
     try {
       await api("suspend_user", "POST", {
-        userId: device.user_id,
-        minutes
-      });
+  userId: device.user_id,
+  minutes,
+  reason
+});
 
       alert("Conta suspensa com sucesso!");
       await loadDevices();
