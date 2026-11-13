@@ -580,7 +580,12 @@ reasonInput.style.cssText =
 
   suspendButton.addEventListener("click", async () => {
     const minutes = Number(minutesInput.value);
+const reason = reasonInput.value.trim();
 
+if (!reason) {
+  alert("Informe o motivo da suspensão.");
+  return;
+}
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200) {
       alert("Informe um tempo entre 1 e 43200 minutos.");
       return;
