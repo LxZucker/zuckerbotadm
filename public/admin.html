@@ -654,15 +654,42 @@
       <!-- OUTRAS ÁREAS -->
 
       <div class="cards">
+      <!-- CONEXÕES E DISPOSITIVOS -->
 
-        <article class="panel-card">
-          <div class="card-icon">▣</div>
-          <p class="eyebrow">CONEXÕES</p>
-          <h2>Dispositivos</h2>
-          <p>Acompanhe os dispositivos conectados ao ZuckerBots.</p>
-          <span class="status">EM CONSTRUÇÃO</span>
-        </article>
+      <section class="panel-card devices-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CONEXÕES</p>
+            <h2>Dispositivos conectados</h2>
+          </div>
 
+          <button id="refresh-devices" type="button" class="logout">
+            ↻ ATUALIZAR
+          </button>
+        </div>
+
+        <div class="device-stats">
+          <div class="device-stat">
+            <strong id="devices-total">0</strong>
+            <span>DISPOSITIVOS</span>
+          </div>
+
+          <div class="device-stat">
+            <strong id="devices-online">0</strong>
+            <span>ONLINE</span>
+          </div>
+
+          <div class="device-stat">
+            <strong id="devices-whatsapp">0</strong>
+            <span>WHATSAPP CONECTADO</span>
+          </div>
+        </div>
+
+        <p id="devices-message">Carregando dispositivos...</p>
+        <div id="devices-list" class="devices-list"></div>
+      </section>
+
+      <div class="cards">
         <article class="panel-card">
           <div class="card-icon">⚙</div>
           <p class="eyebrow">ADMINISTRAÇÃO</p>
@@ -670,9 +697,7 @@
           <p>Gerencie as configurações administrativas.</p>
           <span class="status">EM CONSTRUÇÃO</span>
         </article>
-
       </div>
-
       <p style="text-align:center;color:#555;font-size:10px;padding:10px">
         ZuckerBotADM · CENTRAL DE GERENCIAMENTO
       </p>
