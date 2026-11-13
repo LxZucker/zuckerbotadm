@@ -439,3 +439,88 @@ if (coreFileForm) {
   });
                      }
       
+// ==========================================
+// DISPOSITIVOS CONECTADOS
+// ==========================================
+
+const devicesList = document.getElementById("devices-list");
+const devicesMessage = document.getElementById("devices-message");
+const refreshDevicesButton = document.getElementById("refresh-devices");
+
+function formatDeviceDate(value) {
+  if (!value) return "Sem registro";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Data inválida";
+
+  return date.toLocaleString("pt-BR");
+}
+
+async function loadDevices() {
+  if (!devicesList) return;
+
+  devicesMessage.textContent = "Consultando dispositivos...";
+
+  try {
+    const result = await api("list_devices");
+    const devices = Array.isArray(result.devices) ? result.devices : [];
+
+    devicesList.innerHTML = "";
+
+    const online = devices.filter(device => device.status === "online");
+    const whatsapp = devices.filter(device => device.whatsapp_connected === true);
+
+    document.getElementById("devices-total").textContent = devices.length;
+    document.getElementById("devices-online").textContent = online.length;
+    document.getElementById("devices-whatsapp").textContent = whatsapp.length;
+
+    if (!devices.length) {
+      devicesMessage.textContent = "Nenhum dispositivo encontrado.";
+      return;
+    }
+
+    devicesMessage.textContent = `${devices.length} dispositivo(s) encontrado(s).`;
+
+    devices.forEach(device => {
+      const card = document.createElement("article");
+      card.className = "device-card";
+
+      const name = document.createElement("h3");
+      name.textContent = device.device_name || "Dispositivo sem nome";
+
+      const id = document.createElement("p");
+      id.textContent = `ID: ${device.id}`;
+
+      const user = document.createElement("p");
+      user.textContent = `Usuário: ${device.user_id}`;
+
+      const status = document.createElement("span");
+      status.className = "device-status";
+      status.textContent = `STATUS: ${device.status || "desconhecido"}`;
+
+      const lastSeen = document.createElement("p");
+      lastSeen.textContent = `Último sinal: ${formatDeviceDate(device.last_seen)}`;
+
+      const whatsappStatus = document.createElement("p");
+      whatsappStatus.textContent = device.whatsapp_connected
+        ? "WhatsApp: conectado"
+        : "WhatsApp: desconectado";
+
+      card.append(name, id, user, status, lastSeen, whatsappStatus);
+      devicesList.appendChild(card);
+    });
+
+  } catch (error) {
+    devicesMessage.textContent = "Erro ao carregar dispositivos: " + error.message;
+  }
+}
+
+if (refreshDevicesButton) {
+  refreshDevicesButton.addEventListener("click", loadDevices);
+}
+
+if (devicesList) {
+  loadDevices();
+  setInterval(loadDevices, 15000);
+}
