@@ -457,6 +457,7 @@ function formatDeviceDate(value) {
   return date.toLocaleString("pt-BR");
 }
 
+
 async function loadDevices() {
   if (!devicesList) return;
 
@@ -468,8 +469,37 @@ async function loadDevices() {
 
     devicesList.innerHTML = "";
 
-    const online = devices.filter(device => device.status === "online");
-    const whatsapp = devices.filter(device => device.whatsapp_connected === true);
+    const processed = devices.map(device => {
+      const lastSeen = device.last_seen
+        ? new Date(device.last_seen).getTime()
+        : 0;
+
+      const signalRecent =
+        lastSeen > 0 &&
+        Date.now() - lastSeen >= 0 &&
+        Date.now() - lastSeen <= 120000;
+
+      let status = "OFFLINE";
+      let statusClass = "offline";
+
+      if (device.status === "unlink_pending") {
+        status = "DESVINCULANDO";
+        statusClass = "pending";
+      } else if (device.status === "online" && signalRecent) {
+        status = "ONLINE";
+        statusClass = "online";
+      }
+
+      return { ...device, displayStatus: status, statusClass };
+    });
+
+    const online = processed.filter(
+      device => device.displayStatus === "ONLINE"
+    );
+
+    const whatsapp = online.filter(
+      device => device.whatsapp_connected === true
+    );
 
     document.getElementById("devices-total").textContent = devices.length;
     document.getElementById("devices-online").textContent = online.length;
@@ -480,41 +510,54 @@ async function loadDevices() {
       return;
     }
 
-    devicesMessage.textContent = `${devices.length} dispositivo(s) encontrado(s).`;
+    devicesMessage.textContent =
+      `${devices.length} dispositivo(s) encontrado(s).`;
 
-    devices.forEach(device => {
+    processed.forEach(device => {
       const card = document.createElement("article");
       card.className = "device-card";
 
       const name = document.createElement("h3");
       name.textContent = device.device_name || "Dispositivo sem nome";
 
+      const account = document.createElement("p");
+      account.textContent =
+        `Conta: ${device.account_name || "Não identificado"}`;
+
       const id = document.createElement("p");
       id.textContent = `ID: ${device.id}`;
 
-      const user = document.createElement("p");
-      user.textContent = `Usuário: ${device.user_id}`;
-
       const status = document.createElement("span");
-      status.className = "device-status";
-      status.textContent = `STATUS: ${device.status || "desconhecido"}`;
+      status.className = `device-status ${device.statusClass}`;
+      status.textContent = `STATUS: ${device.displayStatus}`;
 
-      const lastSeen = document.createElement("p");
-      lastSeen.textContent = `Último sinal: ${formatDeviceDate(device.last_seen)}`;
+      const lastSeenText = document.createElement("p");
+      lastSeenText.textContent =
+        `Último sinal: ${formatDeviceDate(device.last_seen)}`;
 
       const whatsappStatus = document.createElement("p");
       whatsappStatus.textContent = device.whatsapp_connected
         ? "WhatsApp: conectado"
         : "WhatsApp: desconectado";
 
-      card.append(name, id, user, status, lastSeen, whatsappStatus);
+      card.append(
+        name,
+        account,
+        id,
+        status,
+        lastSeenText,
+        whatsappStatus
+      );
+
       devicesList.appendChild(card);
     });
 
   } catch (error) {
-    devicesMessage.textContent = "Erro ao carregar dispositivos: " + error.message;
+    devicesMessage.textContent =
+      "Erro ao carregar dispositivos: " + error.message;
   }
-}
+      }
+
 
 if (refreshDevicesButton) {
   refreshDevicesButton.addEventListener("click", loadDevices);
