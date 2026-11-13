@@ -556,6 +556,13 @@ async function loadDevices() {
     suspension.style.color = "#19e68c";
   }
 
+const reasonInput = document.createElement("textarea");
+reasonInput.placeholder = "Motivo da suspensão";
+reasonInput.maxLength = 500;
+reasonInput.rows = 3;
+reasonInput.style.cssText =
+  "width:100%;padding:12px;margin:10px 0;background:#111;color:white;border:1px solid #444;border-radius:8px;resize:vertical;";
+      
   const minutesInput = document.createElement("input");
   minutesInput.type = "number";
   minutesInput.min = "1";
