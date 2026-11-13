@@ -457,6 +457,14 @@ function formatDeviceDate(value) {
   return date.toLocaleString("pt-BR");
 }
 
+function formatRemaining(ms) {
+  const totalMinutes = Math.ceil(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}min`;
+  return `${minutes}min`;
+}
 
 async function loadDevices() {
   if (!devicesList) return;
