@@ -774,7 +774,6 @@ module.exports = async (req, res) => {
   // ==========================================
   // DISPOSITIVOS CONECTADOS
   // ==========================================
-  if (action === "list_devices" && req.method === "GET") {
   
   if (action === "list_devices" && req.method === "GET") {
     try {
