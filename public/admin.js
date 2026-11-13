@@ -518,47 +518,128 @@ async function loadDevices() {
       return;
     }
 
-    devicesMessage.textContent =
-      `${devices.length} dispositivo(s) encontrado(s).`;
-
     processed.forEach(device => {
-      const card = document.createElement("article");
-      card.className = "device-card";
+  const card = document.createElement("article");
+  card.className = "device-card";
 
-      const name = document.createElement("h3");
-      name.textContent = device.device_name || "Dispositivo sem nome";
+  const name = document.createElement("h3");
+  name.textContent = device.device_name || "Dispositivo sem nome";
 
-      const account = document.createElement("p");
-      account.textContent =
-        `Conta: ${device.account_name || "Não identificado"}`;
+  const account = document.createElement("p");
+  account.textContent =
+    `Conta: ${device.account_name || "Não identificado"}`;
 
-      const id = document.createElement("p");
-      id.textContent = `ID: ${device.id}`;
+  const id = document.createElement("p");
+  id.textContent = `ID: ${device.id}`;
 
-      const status = document.createElement("span");
-      status.className = `device-status ${device.statusClass}`;
-      status.textContent = `STATUS: ${device.displayStatus}`;
+  const status = document.createElement("span");
+  status.className = `device-status ${device.statusClass}`;
+  status.textContent = `STATUS: ${device.displayStatus}`;
 
-      const lastSeenText = document.createElement("p");
-      lastSeenText.textContent =
-        `Último sinal: ${formatDeviceDate(device.last_seen)}`;
+  const lastSeenText = document.createElement("p");
+  lastSeenText.textContent =
+    `Último sinal: ${formatDeviceDate(device.last_seen)}`;
 
-      const whatsappStatus = document.createElement("p");
-      whatsappStatus.textContent = device.whatsapp_connected
-        ? "WhatsApp: conectado"
-        : "WhatsApp: desconectado";
+  const whatsappStatus = document.createElement("p");
+  whatsappStatus.textContent = device.whatsapp_connected
+    ? "WhatsApp: conectado"
+    : "WhatsApp: desconectado";
 
-      card.append(
-        name,
-        account,
-        id,
-        status,
-        lastSeenText,
-        whatsappStatus
-      );
+  const suspension = document.createElement("p");
 
-      devicesList.appendChild(card);
-    });
+  if (device.suspended) {
+    suspension.textContent =
+      `CONTA SUSPENSA · Restam ${formatRemaining(device.suspension_remaining_ms)}`;
+    suspension.style.color = "#ff747d";
+  } else {
+    suspension.textContent = "CONTA LIBERADA";
+    suspension.style.color = "#19e68c";
+  }
+
+  const minutesInput = document.createElement("input");
+  minutesInput.type = "number";
+  minutesInput.min = "1";
+  minutesInput.max = "43200";
+  minutesInput.placeholder = "Minutos de suspensão";
+  minutesInput.style.cssText =
+    "width:100%;padding:12px;margin:10px 0;background:#111;color:white;border:1px solid #444;border-radius:8px;";
+
+  const suspendButton = document.createElement("button");
+  suspendButton.type = "button";
+  suspendButton.textContent = "SUSPENDER CONTA";
+  suspendButton.className = "logout";
+  suspendButton.style.cssText =
+    "width:100%;margin-bottom:8px;";
+
+  suspendButton.addEventListener("click", async () => {
+    const minutes = Number(minutesInput.value);
+
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200) {
+      alert("Informe um tempo entre 1 e 43200 minutos.");
+      return;
+    }
+
+    if (!confirm(`Suspender esta conta por ${minutes} minutos?`)) return;
+
+    suspendButton.disabled = true;
+
+    try {
+      await api("suspend_user", "POST", {
+        userId: device.user_id,
+        minutes
+      });
+
+      alert("Conta suspensa com sucesso!");
+      await loadDevices();
+    } catch (error) {
+      alert("Erro ao suspender: " + error.message);
+      suspendButton.disabled = false;
+    }
+  });
+
+  const releaseButton = document.createElement("button");
+  releaseButton.type = "button";
+  releaseButton.textContent = "LIBERAR CONTA";
+  releaseButton.className = "logout";
+  releaseButton.style.cssText =
+    "width:100%;border-color:#19e68c;color:#19e68c;";
+
+  releaseButton.addEventListener("click", async () => {
+    if (!confirm("Deseja liberar esta conta agora?")) return;
+
+    releaseButton.disabled = true;
+
+    try {
+      await api("unsuspend_user", "POST", {
+        userId: device.user_id
+      });
+
+      alert("Conta liberada com sucesso!");
+      await loadDevices();
+    } catch (error) {
+      alert("Erro ao liberar: " + error.message);
+      releaseButton.disabled = false;
+    }
+  });
+
+  card.append(
+    name,
+    account,
+    id,
+    status,
+    lastSeenText,
+    whatsappStatus,
+    suspension
+  );
+
+  if (device.suspended) {
+    card.append(releaseButton);
+  } else {
+    card.append(minutesInput, suspendButton);
+  }
+
+  devicesList.appendChild(card);
+});
 
   } catch (error) {
     devicesMessage.textContent =
