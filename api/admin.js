@@ -979,22 +979,38 @@ module.exports = async (req, res) => {
         }
       }));
 
-      const devices = result.map(device => ({
-        ...device,
-        ...(accountInfo[device.user_id] || {
-          account_name: "Não identificado",
-          suspended: false,
-          suspended_until: null,
-          suspension_remaining_ms: 0,
-          valid_until: null,
-          validity_type: "none",
-          validity_remaining_ms: 0,
-          validity_expired: false,
-          renewal_count: 0,
-          trial_granted_at: null
-        })
-      }));
+      const pairingResponse = await supabaseRequest(
+  "/rest/v1/whatsapp_pairing?select=device_id,phone_number,created_at&order=created_at.desc&limit=500"
+);
 
+const pairings = pairingResponse.ok
+  ? await pairingResponse.json().catch(() => [])
+  : [];
+
+const pairingInfo = {};
+
+for (const pairing of pairings) {
+  if (!pairingInfo[pairing.device_id]) {
+    pairingInfo[pairing.device_id] = pairing.phone_number;
+  }
+}
+
+const devices = result.map(device => ({
+  ...device,
+  whatsapp_number: pairingInfo[device.id] || null,
+  ...(accountInfo[device.user_id] || {
+    account_name: "Não identificado",
+    suspended: false,
+    suspended_until: null,
+    suspension_remaining_ms: 0,
+    valid_until: null,
+    validity_type: "none",
+    validity_remaining_ms: 0,
+    validity_expired: false,
+    renewal_count: 0,
+    trial_granted_at: null
+  })
+}));
 
       return res.status(200).json({
         success: true,
