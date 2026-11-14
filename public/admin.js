@@ -733,6 +733,19 @@ const refreshAccountsButton = document.getElementById("refresh-accounts");
 const updateReportsList = document.getElementById("update-reports-list");
 const updateReportsMessage = document.getElementById("update-reports-message");
 const refreshUpdateReportsButton = document.getElementById("refresh-update-reports");
+const searchUpdates = document.getElementById("search-updates");
+
+if (searchUpdates && updateReportsList) {
+  searchUpdates.addEventListener("input", () => {
+    const search = searchUpdates.value.toLowerCase().trim();
+
+    Array.from(updateReportsList.children).forEach(item => {
+      item.style.display = item.textContent.toLowerCase().includes(search)
+        ? ""
+        : "none";
+    });
+  });
+}
 
 function remainingAccountTime(ms) {
   const totalMinutes = Math.max(0, Math.ceil(Number(ms || 0) / 60000));
