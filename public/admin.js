@@ -59,7 +59,7 @@ if (dashboardScreen) {
         window.location.href = "/";
         return;
       }
-      await Promise.all([loadReleases(), loadCoreFiles()]);
+      await Promise.all([loadReleases(), loadCoreFiles(), loadAccounts(), loadUpdateReports()]);
     } catch {
       window.location.href = "/";
     }
@@ -705,10 +705,148 @@ if (!reason) {
       }
 
 
+// ==========================================
+// CONTAS E RELATÓRIOS DOS AGENTES
+// ==========================================
+const accountsList = document.getElementById("accounts-list");
+const accountsMessage = document.getElementById("accounts-message");
+const refreshAccountsButton = document.getElementById("refresh-accounts");
+const updateReportsList = document.getElementById("update-reports-list");
+const updateReportsMessage = document.getElementById("update-reports-message");
+const refreshUpdateReportsButton = document.getElementById("refresh-update-reports");
+
+function remainingAccountTime(ms) {
+  const totalMinutes = Math.max(0, Math.ceil(Number(ms || 0) / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${minutes}min`;
+  return `${minutes}min`;
+}
+
+async function loadAccounts() {
+  if (!accountsList) return;
+  accountsMessage.textContent = "Consultando contas registradas...";
+  accountsList.innerHTML = "";
+  try {
+    const result = await api("list_accounts");
+    const accounts = Array.isArray(result.accounts) ? result.accounts : [];
+    if (!accounts.length) {
+      accountsMessage.textContent = "Nenhuma conta encontrada.";
+      return;
+    }
+    accountsMessage.textContent = `${accounts.length} conta(s) cadastrada(s).`;
+    for (const account of accounts) {
+      const card = document.createElement("article");
+      card.className = "account-item";
+      const title = document.createElement("h3");
+      title.textContent = account.account_name || "Conta sem nome";
+      const identity = document.createElement("p");
+      identity.textContent = `ID: ${account.user_id}`;
+      const email = document.createElement("p");
+      email.textContent = `Login: ${account.email || "Não informado"}`;
+      const status = document.createElement("span");
+      status.className = "account-state";
+      if (account.suspended) {
+        status.textContent = "SUSPENSA";
+        status.classList.add("suspended");
+      } else if (account.validity_expired) {
+        status.textContent = "VALIDADE EXPIRADA";
+        status.classList.add("expired");
+      } else if (account.validity_type === "trial" && !account.renewal_count) {
+        status.textContent = "PERÍODO DE TESTE";
+      } else if (account.validity_type === "paid") {
+        status.textContent = `RENOVADA · ${account.renewal_count || 1} RENOVAÇÃO(ÕES)`;
+      } else {
+        status.textContent = "VALIDADE NÃO CONFIGURADA";
+        status.classList.add("expired");
+      }
+      const validity = document.createElement("p");
+      validity.textContent = account.valid_until
+        ? `Válida até: ${formatDate(account.valid_until)}${account.validity_expired ? " · expirada" : ` · restam ${remainingAccountTime(account.validity_remaining_ms)}`}`
+        : "Sem data de vencimento cadastrada.";
+      const created = document.createElement("p");
+      created.textContent = `Cadastro: ${formatDate(account.created_at)}`;
+      const renewalInput = document.createElement("input");
+      renewalInput.type = "number";
+      renewalInput.min = "1";
+      renewalInput.max = "3650";
+      renewalInput.value = "30";
+      renewalInput.setAttribute("aria-label", "Dias de validade para adicionar");
+      const renewButton = document.createElement("button");
+      renewButton.type = "button";
+      renewButton.className = "logout";
+      renewButton.textContent = "ADICIONAR TEMPO";
+      renewButton.addEventListener("click", async () => {
+        const days = Number(renewalInput.value);
+        if (!Number.isInteger(days) || days < 1 || days > 3650) {
+          alert("Informe entre 1 e 3650 dias.");
+          return;
+        }
+        if (!confirm(`Adicionar ${days} dia(s) à conta ${account.account_name}?`)) return;
+        renewButton.disabled = true;
+        try {
+          await api("set_validity", "POST", { userId: account.user_id, days });
+          await Promise.all([loadAccounts(), loadDevices()]);
+        } catch (error) {
+          alert("Não foi possível renovar: " + error.message);
+          renewButton.disabled = false;
+        }
+      });
+      const tools = document.createElement("div");
+      tools.className = "account-tools";
+      tools.append(renewalInput, renewButton);
+      card.append(title, identity, email, status, validity, created);
+      if (account.suspended_until) {
+        const suspended = document.createElement("p");
+        suspended.textContent = `Suspensa até: ${formatDate(account.suspended_until)} · ${account.suspension_reason || "Motivo não informado"}`;
+        card.appendChild(suspended);
+      }
+      card.appendChild(tools);
+      accountsList.appendChild(card);
+    }
+  } catch (error) {
+    accountsMessage.textContent = "Erro ao carregar contas: " + error.message;
+  }
+}
+
+async function loadUpdateReports() {
+  if (!updateReportsList) return;
+  updateReportsList.innerHTML = "";
+  updateReportsMessage.textContent = "Consultando relatórios...";
+  try {
+    const result = await api("list_update_reports");
+    const reports = Array.isArray(result.reports) ? result.reports : [];
+    if (!reports.length) {
+      updateReportsMessage.textContent = "Nenhum agente enviou relatório de atualização ainda.";
+      return;
+    }
+    updateReportsMessage.textContent = `${reports.length} relatório(s) recentes.`;
+    reports.forEach(report => {
+      const item = document.createElement("article");
+      item.className = `update-report-item ${report.status === "failed" ? "failed" : ""}`;
+      const title = document.createElement("h3");
+      title.textContent = `Versão ${report.version} · ${report.status === "success" ? "CONCLUÍDA" : "FALHOU"}`;
+      const details = document.createElement("p");
+      details.textContent = `${report.message || "Sem detalhes"} · ${formatDate(report.created_at)}`;
+      const identity = document.createElement("p");
+      identity.textContent = `Usuário: ${report.user_id} · Dispositivo: ${report.device_id}`;
+      item.append(title, details, identity);
+      updateReportsList.appendChild(item);
+    });
+  } catch (error) {
+    updateReportsMessage.textContent = "Erro ao consultar relatórios: " + error.message;
+  }
+}
+
+if (refreshAccountsButton) refreshAccountsButton.addEventListener("click", loadAccounts);
+if (refreshUpdateReportsButton) refreshUpdateReportsButton.addEventListener("click", loadUpdateReports);
+
 if (refreshDevicesButton) {
   refreshDevicesButton.addEventListener("click", loadDevices);
 }
 
 if (devicesList) {
   loadDevices();
-                      }
+  }
