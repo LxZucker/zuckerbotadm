@@ -882,6 +882,55 @@ module.exports = async (req, res) => {
   }
   
   
+
+  // ==========================================
+  // CONCESSÃO / RENOVAÇÃO DE VALIDADE
+  // ==========================================
+  if (action === "set_validity" && req.method === "POST") {
+    try {
+      const { userId } = req.body || {};
+      const days = Number(req.body?.days);
+      if (typeof userId !== "string" || !userId.trim() || userId.length > 100) {
+        return res.status(400).json({ error: "Conta inválida." });
+      }
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        return res.status(400).json({ error: "Informe uma quantidade entre 1 e 3650 dias." });
+      }
+      const userUrl = `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
+      const userResponse = await fetch(userUrl, { headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+      }});
+      const userData = await userResponse.json().catch(() => ({}));
+      if (!userResponse.ok) return res.status(userResponse.status === 404 ? 404 : 502).json({ error: "Não foi possível localizar a conta." });
+      const metadata = { ...(userData.user_metadata || {}) };
+      const currentTime = metadata.zucker_valid_until ? new Date(metadata.zucker_valid_until).getTime() : 0;
+      const baseTime = Number.isFinite(currentTime) && currentTime > Date.now() ? currentTime : Date.now();
+      const validUntil = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
+      metadata.zucker_valid_until = validUntil;
+      metadata.zucker_validity_type = "paid";
+      metadata.zucker_validity_updated_at = new Date().toISOString();
+      const updateResponse = await fetch(userUrl, {
+        method: "PUT",
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_metadata: metadata })
+      });
+      const updated = await updateResponse.json().catch(() => ({}));
+      if (!updateResponse.ok) {
+        console.error("[SET USER VALIDITY]", updated);
+        return res.status(502).json({ error: "Não foi possível atualizar a validade." });
+      }
+      return res.status(200).json({ success: true, valid_until: validUntil, days_added: days, validity_type: "paid" });
+    } catch (error) {
+      console.error("[SET USER VALIDITY]", error);
+      return res.status(500).json({ error: "Erro ao atualizar a validade." });
+    }
+  }
+
   // ==========================================
   // DISPOSITIVOS CONECTADOS
   // ==========================================
@@ -937,7 +986,13 @@ module.exports = async (req, res) => {
             suspended_until: suspendedUntil,
             suspension_remaining_ms: Number.isFinite(suspendedTime)
               ? Math.max(0, suspendedTime - Date.now())
-              : 0
+              : 0,
+            valid_until: metadata.zucker_valid_until || null,
+            validity_type: metadata.zucker_validity_type === "trial" ? "trial" : "paid",
+            validity_remaining_ms: metadata.zucker_valid_until && Number.isFinite(new Date(metadata.zucker_valid_until).getTime())
+              ? Math.max(0, new Date(metadata.zucker_valid_until).getTime() - Date.now())
+              : 0,
+            validity_expired: Boolean(metadata.zucker_valid_until) && Number.isFinite(new Date(metadata.zucker_valid_until).getTime()) && new Date(metadata.zucker_valid_until).getTime() <= Date.now()
           };
 
         } catch (error) {
@@ -951,7 +1006,11 @@ module.exports = async (req, res) => {
           account_name: "Não identificado",
           suspended: false,
           suspended_until: null,
-          suspension_remaining_ms: 0
+          suspension_remaining_ms: 0,
+          valid_until: null,
+          validity_type: "paid",
+          validity_remaining_ms: 0,
+          validity_expired: false
         })
       }));
 
