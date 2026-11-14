@@ -962,7 +962,7 @@ module.exports = async (req, res) => {
           const access = await getAccountAccessById(userId);
           const metadata = access.metadata;
           accountInfo[userId] = {
-            account_name: metadata.username || "Não identificado",
+            account_name: access.user?.user_metadata?.username || access.user?.email?.split("@")[0] || metadata.username || "Não identificado",
             suspended: access.suspended,
             suspended_until: access.suspendedUntil,
             suspension_remaining_ms: access.suspensionRemainingMs,
