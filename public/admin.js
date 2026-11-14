@@ -545,6 +545,47 @@ async function loadDevices() {
     ? "WhatsApp: conectado"
     : "WhatsApp: desconectado";
 
+  const validity = document.createElement("p");
+  if (device.valid_until) {
+    validity.textContent = device.validity_expired
+      ? `VALIDADE EXPIRADA · ${device.validity_type === "trial" ? "TESTE" : "PLANO"}`
+      : `VALIDADE ATÉ: ${formatDate(device.valid_until)} · Restam ${formatRemaining(device.validity_remaining_ms)}`;
+    validity.style.color = device.validity_expired ? "#ff747d" : "#19e68c";
+  } else {
+    validity.textContent = "VALIDADE NÃO CONFIGURADA";
+    validity.style.color = "#ffbf69";
+  }
+
+  const validityDaysInput = document.createElement("input");
+  validityDaysInput.type = "number";
+  validityDaysInput.min = "1";
+  validityDaysInput.max = "3650";
+  validityDaysInput.placeholder = "Adicionar validade (dias)";
+  validityDaysInput.style.cssText = "width:100%;padding:12px;margin:10px 0;background:#111;color:white;border:1px solid #444;border-radius:8px;";
+
+  const validityButton = document.createElement("button");
+  validityButton.type = "button";
+  validityButton.textContent = "ADICIONAR VALIDADE";
+  validityButton.className = "logout";
+  validityButton.style.cssText = "width:100%;margin-bottom:8px;border-color:#19e68c;color:#19e68c;";
+  validityButton.addEventListener("click", async () => {
+    const days = Number(validityDaysInput.value);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      alert("Informe entre 1 e 3650 dias.");
+      return;
+    }
+    if (!confirm(`Adicionar ${days} dia(s) de validade para esta conta?`)) return;
+    validityButton.disabled = true;
+    try {
+      await api("set_validity", "POST", { userId: device.user_id, days });
+      alert("Validade atualizada com sucesso!");
+      await loadDevices();
+    } catch (error) {
+      alert("Erro ao atualizar validade: " + error.message);
+      validityButton.disabled = false;
+    }
+  });
+
   const suspension = document.createElement("p");
 
   if (device.suspended) {
@@ -642,6 +683,9 @@ if (!reason) {
     status,
     lastSeenText,
     whatsappStatus,
+    validity,
+    validityDaysInput,
+    validityButton,
     suspension
   );
 
@@ -667,4 +711,4 @@ if (refreshDevicesButton) {
 
 if (devicesList) {
   loadDevices();
-}
+                      }
