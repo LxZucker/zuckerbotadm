@@ -541,9 +541,14 @@ async function loadDevices() {
     `Último sinal: ${formatDeviceDate(device.last_seen)}`;
 
   const whatsappStatus = document.createElement("p");
-  whatsappStatus.textContent = device.whatsapp_connected
-    ? "WhatsApp: conectado"
-    : "WhatsApp: desconectado";
+whatsappStatus.textContent = device.whatsapp_connected
+  ? "WhatsApp: conectado"
+  : "WhatsApp: desconectado";
+
+const whatsappNumber = document.createElement("p");
+whatsappNumber.textContent = device.whatsapp_number
+  ? `Número do último pareamento: ${device.whatsapp_number}`
+  : "Número: não registrado";
 
   const validity = document.createElement("p");
   if (device.valid_until) {
