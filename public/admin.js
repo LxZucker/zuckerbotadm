@@ -688,6 +688,7 @@ if (!reason) {
     status,
     lastSeenText,
     whatsappStatus,
+    whatsappNumber,
     validity,
     validityDaysInput,
     validityButton,
