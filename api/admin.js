@@ -1,5 +1,6 @@
 
 const crypto = require("crypto");
+const { getAccountAccessById, getAccountAccessForUser, updateAccountControl } = require("../lib/account-access");
 
 const BUCKET = "zuckerbots-releases";
 const CORE_PREFIX = "core/";
@@ -774,7 +775,7 @@ module.exports = async (req, res) => {
   
   
   // ==========================================
-  // SUSPENSÃO DE CONTAS
+  // SUSPENSÃO E VALIDADE DAS CONTAS
   // ==========================================
 
   if (
@@ -786,106 +787,47 @@ module.exports = async (req, res) => {
       const minutes = Number(req.body?.minutes);
       const reason = String(req.body?.reason || "").trim();
 
-      if (
-        typeof userId !== "string" ||
-        !userId.trim() ||
-        userId.length > 100
-      ) {
+      if (typeof userId !== "string" || !userId.trim() || userId.length > 100) {
         return res.status(400).json({ error: "Conta inválida." });
       }
-
-      if (
-        action === "suspend_user" &&
-        (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200)
-      ) {
-        return res.status(400).json({
-          error: "Informe uma duração entre 1 e 43200 minutos."
-        });
+      if (action === "suspend_user" && (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200)) {
+        return res.status(400).json({ error: "Informe uma duração entre 1 e 43200 minutos." });
       }
-
       if (action === "suspend_user" && !reason) {
-        return res.status(400).json({
-          error: "Informe o motivo da suspensão."
-        });
+        return res.status(400).json({ error: "Informe o motivo da suspensão." });
       }
-
       if (reason.length > 500) {
-        return res.status(400).json({
-          error: "O motivo pode ter no máximo 500 caracteres."
-        });
+        return res.status(400).json({ error: "O motivo pode ter no máximo 500 caracteres." });
       }
 
-      const userUrl =
-        `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
-
-      const userResponse = await fetch(userUrl, {
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        }
-      });
-
-      const userData = await userResponse.json().catch(() => ({}));
-
-      if (!userResponse.ok) {
-        return res.status(userResponse.status === 404 ? 404 : 502).json({
-          error: "Não foi possível localizar a conta."
-        });
-      }
-
-      const userMetadata = { ...(userData.user_metadata || {}) };
-
-      if (action === "suspend_user") {
-        userMetadata.zucker_suspended_until = new Date(
-          Date.now() + minutes * 60 * 1000
-        ).toISOString();
-
-        userMetadata.zucker_suspended_at = new Date().toISOString();
-        userMetadata.zucker_suspension_reason = reason;
-      } else {
-        userMetadata.zucker_suspended_until = null;
-        userMetadata.zucker_suspended_at = null;
-        userMetadata.zucker_suspension_reason = null;
-      }
-
-      const updateResponse = await fetch(userUrl, {
-        method: "PUT",
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ user_metadata: userMetadata })
-      });
-
-      const updatedUser = await updateResponse.json().catch(() => ({}));
-
-      if (!updateResponse.ok) {
-        console.error("[UPDATE USER SUSPENSION]", updatedUser);
-        return res.status(502).json({
-          error: "Não foi possível atualizar a suspensão da conta."
-        });
-      }
+      const now = new Date();
+      const updates = action === "suspend_user"
+        ? {
+            zucker_suspended_until: new Date(now.getTime() + minutes * 60000).toISOString(),
+            zucker_suspended_at: now.toISOString(),
+            zucker_suspension_reason: reason
+          }
+        : {
+            zucker_suspended_until: null,
+            zucker_suspended_at: null,
+            zucker_suspension_reason: null
+          };
+      const access = await updateAccountControl(userId, updates);
 
       return res.status(200).json({
         success: true,
-        suspended: action === "suspend_user",
-        suspended_until: userMetadata.zucker_suspended_until,
-        reason: userMetadata.zucker_suspension_reason
+        suspended: access.suspended,
+        suspended_until: access.suspendedUntil,
+        reason: access.suspensionReason
       });
     } catch (error) {
       console.error("[USER SUSPENSION]", error);
-      return res.status(500).json({
-        error: "Erro ao alterar a suspensão da conta."
+      return res.status(error.status === 404 ? 404 : 502).json({
+        error: "Não foi possível alterar a suspensão da conta."
       });
     }
   }
-  
-  
 
-  // ==========================================
-  // CONCESSÃO / RENOVAÇÃO DE VALIDADE
-  // ==========================================
   if (action === "set_validity" && req.method === "POST") {
     try {
       const { userId } = req.body || {};
@@ -896,38 +838,96 @@ module.exports = async (req, res) => {
       if (!Number.isInteger(days) || days < 1 || days > 3650) {
         return res.status(400).json({ error: "Informe uma quantidade entre 1 e 3650 dias." });
       }
-      const userUrl = `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
-      const userResponse = await fetch(userUrl, { headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-      }});
-      const userData = await userResponse.json().catch(() => ({}));
-      if (!userResponse.ok) return res.status(userResponse.status === 404 ? 404 : 502).json({ error: "Não foi possível localizar a conta." });
-      const metadata = { ...(userData.user_metadata || {}) };
-      const currentTime = metadata.zucker_valid_until ? new Date(metadata.zucker_valid_until).getTime() : 0;
-      const baseTime = Number.isFinite(currentTime) && currentTime > Date.now() ? currentTime : Date.now();
+
+      const access = await getAccountAccessById(userId);
+      const now = Date.now();
+      const currentTime = access.validityUntil ? new Date(access.validityUntil).getTime() : 0;
+      const baseTime = Number.isFinite(currentTime) && currentTime > now ? currentTime : now;
       const validUntil = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
-      metadata.zucker_valid_until = validUntil;
-      metadata.zucker_validity_type = "paid";
-      metadata.zucker_validity_updated_at = new Date().toISOString();
-      const updateResponse = await fetch(userUrl, {
-        method: "PUT",
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ user_metadata: metadata })
+      const renewalCount = access.validityRenewalCount + 1;
+      const updated = await updateAccountControl(userId, {
+        zucker_valid_until: validUntil,
+        zucker_validity_type: "paid",
+        zucker_validity_updated_at: new Date(now).toISOString(),
+        zucker_validity_last_renewed_at: new Date(now).toISOString(),
+        zucker_validity_renewal_count: renewalCount
       });
-      const updated = await updateResponse.json().catch(() => ({}));
-      if (!updateResponse.ok) {
-        console.error("[SET USER VALIDITY]", updated);
-        return res.status(502).json({ error: "Não foi possível atualizar a validade." });
-      }
-      return res.status(200).json({ success: true, valid_until: validUntil, days_added: days, validity_type: "paid" });
+
+      return res.status(200).json({
+        success: true,
+        valid_until: updated.validityUntil,
+        days_added: days,
+        validity_type: "paid",
+        renewal_count: updated.validityRenewalCount
+      });
     } catch (error) {
       console.error("[SET USER VALIDITY]", error);
-      return res.status(500).json({ error: "Erro ao atualizar a validade." });
+      return res.status(error.status === 404 ? 404 : 502).json({
+        error: "Não foi possível atualizar a validade da conta."
+      });
+    }
+  }
+
+  // Lista todas as contas cadastradas, inclusive as que ainda não possuem bot vinculado.
+  if (action === "list_accounts" && req.method === "GET") {
+    try {
+      const accounts = [];
+      const perPage = 1000;
+      for (let page = 1; page <= 20; page++) {
+        const response = await supabaseRequest(
+          `/auth/v1/admin/users?page=${page}&per_page=${perPage}`
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || data.msg || "Falha ao consultar usuários.");
+        }
+        const users = Array.isArray(data.users) ? data.users : [];
+        if (!users.length) break;
+
+        for (const user of users) {
+          try {
+            const access = await getAccountAccessForUser(user, false);
+            const meta = access.metadata;
+            accounts.push({
+              user_id: user.id,
+              account_name: meta.username || user.email?.split("@")[0] || "Não identificado",
+              email: user.email || null,
+              created_at: user.created_at || null,
+              valid_until: access.validityUntil,
+              validity_type: access.validityType,
+              validity_remaining_ms: access.validityRemainingMs,
+              validity_expired: access.validityExpired,
+              renewal_count: access.validityRenewalCount,
+              trial_granted_at: access.trialGrantedAt,
+              suspended: access.suspended,
+              suspended_until: access.suspendedUntil,
+              suspension_reason: access.suspensionReason
+            });
+          } catch (accountError) {
+            console.error("[LIST ACCOUNT ITEM]", user.id, accountError.message);
+          }
+        }
+        if (users.length < perPage) break;
+      }
+      accounts.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      return res.status(200).json({ success: true, accounts });
+    } catch (error) {
+      console.error("[LIST ACCOUNTS]", error);
+      return res.status(502).json({ error: "Não foi possível consultar as contas." });
+    }
+  }
+
+  if (action === "list_update_reports" && req.method === "GET") {
+    try {
+      const response = await supabaseRequest(
+        "/rest/v1/bot_update_events?select=id,user_id,device_id,version,status,message,created_at&order=created_at.desc&limit=100"
+      );
+      const reports = await response.json().catch(() => []);
+      if (!response.ok) throw new Error("Falha ao consultar os relatórios de atualização.");
+      return res.status(200).json({ success: true, reports: Array.isArray(reports) ? reports : [] });
+    } catch (error) {
+      console.error("[UPDATE REPORTS]", error);
+      return res.status(502).json({ error: "Não foi possível consultar os relatórios." });
     }
   }
 
@@ -957,46 +957,25 @@ module.exports = async (req, res) => {
 
 
       const accountInfo = {};
-
       await Promise.all(userIds.map(async userId => {
         try {
-          const userResponse = await fetch(
-            `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
-            {
-              headers: {
-                apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-                Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-              }
-            }
-          );
-
-          if (!userResponse.ok) return;
-
-          const userData = await userResponse.json();
-          const metadata = userData.user_metadata || {};
-          const suspendedUntil = metadata.zucker_suspended_until || null;
-          const suspendedTime = suspendedUntil
-            ? new Date(suspendedUntil).getTime()
-            : 0;
-
+          const access = await getAccountAccessById(userId);
+          const metadata = access.metadata;
           accountInfo[userId] = {
             account_name: metadata.username || "Não identificado",
-            suspended: Number.isFinite(suspendedTime) &&
-              suspendedTime > Date.now(),
-            suspended_until: suspendedUntil,
-            suspension_remaining_ms: Number.isFinite(suspendedTime)
-              ? Math.max(0, suspendedTime - Date.now())
-              : 0,
-            valid_until: metadata.zucker_valid_until || null,
-            validity_type: metadata.zucker_validity_type === "trial" ? "trial" : "paid",
-            validity_remaining_ms: metadata.zucker_valid_until && Number.isFinite(new Date(metadata.zucker_valid_until).getTime())
-              ? Math.max(0, new Date(metadata.zucker_valid_until).getTime() - Date.now())
-              : 0,
-            validity_expired: Boolean(metadata.zucker_valid_until) && Number.isFinite(new Date(metadata.zucker_valid_until).getTime()) && new Date(metadata.zucker_valid_until).getTime() <= Date.now()
+            suspended: access.suspended,
+            suspended_until: access.suspendedUntil,
+            suspension_remaining_ms: access.suspensionRemainingMs,
+            suspension_reason: access.suspensionReason,
+            valid_until: access.validityUntil,
+            validity_type: access.validityType,
+            validity_remaining_ms: access.validityRemainingMs,
+            validity_expired: access.validityExpired,
+            renewal_count: access.validityRenewalCount,
+            trial_granted_at: access.trialGrantedAt
           };
-
         } catch (error) {
-          console.error("[DEVICE ACCOUNT INFO]", error);
+          console.error("[DEVICE ACCOUNT INFO]", userId, error.message);
         }
       }));
 
@@ -1008,9 +987,11 @@ module.exports = async (req, res) => {
           suspended_until: null,
           suspension_remaining_ms: 0,
           valid_until: null,
-          validity_type: "paid",
+          validity_type: "none",
           validity_remaining_ms: 0,
-          validity_expired: false
+          validity_expired: false,
+          renewal_count: 0,
+          trial_granted_at: null
         })
       }));
 
