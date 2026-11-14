@@ -501,6 +501,16 @@
       margin: 7px 0;
     }
 
+    .account-list, .update-report-list { display:grid; gap:12px; margin-top:14px; }
+    .account-item, .update-report-item { background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:12px; padding:16px; overflow-wrap:anywhere; }
+    .account-item h3, .update-report-item h3 { margin:0 0 8px; color:#fff; font-size:15px; }
+    .account-item p, .update-report-item p { color:#aaa; font-size:12px; line-height:1.6; margin:6px 0; }
+    .account-state { display:inline-block; margin:5px 0 8px; padding:6px 9px; border-radius:7px; background:rgba(25,230,140,.08); color:var(--green); font-size:10px; font-weight:900; }
+    .account-state.expired, .account-state.suspended, .update-report-item.failed { color:#ff747d; background:rgba(255,70,80,.08); }
+    .account-tools { display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:10px; }
+    .account-tools input { min-width:0; padding:11px; color:#fff; background:#111; border:1px solid #444; border-radius:8px; }
+    .account-tools button { padding:10px 12px; }
+
     .device-status {
       display: inline-block;
       padding: 7px 10px;
@@ -795,6 +805,30 @@
 
         <p id="devices-message">Carregando dispositivos...</p>
         <div id="devices-list" class="devices-list"></div>
+      </section>
+
+      <section class="panel-card devices-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CONTROLE DE ACESSO</p>
+            <h2>Validade das contas</h2>
+          </div>
+          <button id="refresh-accounts" type="button" class="logout">↻ ATUALIZAR</button>
+        </div>
+        <p id="accounts-message">Carregando contas...</p>
+        <div id="accounts-list" class="account-list"></div>
+      </section>
+
+      <section class="panel-card devices-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ATUALIZAÇÕES DO TERMUX</p>
+            <h2>Relatórios dos agentes</h2>
+          </div>
+          <button id="refresh-update-reports" type="button" class="logout">↻ ATUALIZAR</button>
+        </div>
+        <p id="update-reports-message">Carregando relatórios...</p>
+        <div id="update-reports-list" class="update-report-list"></div>
       </section>
 
       <div class="cards">
