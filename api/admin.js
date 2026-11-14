@@ -5,6 +5,8 @@ const { getAccountAccessById, getAccountAccessForUser, updateAccountControl } = 
 const BUCKET = "zuckerbots-releases";
 const CORE_PREFIX = "core/";
 const MAX_CORE_FILE_SIZE = 2 * 1024 * 1024;
+// O agente do site cliente consulta este projeto Supabase diretamente.
+const AGENT_SUPABASE_PROJECT_REF = "khkjlodngoahevxkxswj";
 
 function safeEqual(a, b) {
   const x = Buffer.from(String(a));
@@ -71,12 +73,46 @@ function verifySession(req, secret) {
   }
 }
 
+function supabaseBaseUrl() {
+  const value = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  if (!value) throw new Error("SUPABASE_URL não configurada.");
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("SUPABASE_URL inválida.");
+  }
+
+  if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".supabase.co")) {
+    throw new Error("SUPABASE_URL deve apontar para um projeto Supabase HTTPS.");
+  }
+
+  return `${parsed.protocol}//${parsed.host}`;
+}
+
+function supabaseProjectRef() {
+  return new URL(supabaseBaseUrl()).hostname.split(".")[0];
+}
+
+function assertAgentSupabaseProject() {
+  const actual = supabaseProjectRef();
+  if (actual !== AGENT_SUPABASE_PROJECT_REF) {
+    const error = new Error(
+      `O painel administrativo está conectado ao projeto Supabase ${actual}, mas os agentes consultam ${AGENT_SUPABASE_PROJECT_REF}. Configure SUPABASE_URL no Vercel Admin para o mesmo projeto usado pelo site cliente.`
+    );
+    error.code = "SUPABASE_PROJECT_MISMATCH";
+    throw error;
+  }
+  return actual;
+}
+
 async function supabaseRequest(path, options = {}) {
-  const url = process.env.SUPABASE_URL;
+  const url = supabaseBaseUrl();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key) {
-    throw new Error("Variáveis do Supabase não configuradas");
+  if (!key) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada.");
   }
 
   return fetch(`${url}${path}`, {
@@ -87,6 +123,62 @@ async function supabaseRequest(path, options = {}) {
       ...(options.headers || {})
     }
   });
+}
+
+async function verifyReleaseObject(version, storagePath, expectedSize) {
+  assertAgentSupabaseProject();
+
+  if (
+    typeof storagePath !== "string" ||
+    !new RegExp(`^releases/${version}/[a-f0-9-]{36}\\.zip$`, "i").test(storagePath)
+  ) {
+    throw new Error("O caminho do pacote não corresponde à versão publicada.");
+  }
+
+  const response = await supabaseRequest(
+    `/storage/v1/object/sign/${BUCKET}/${storagePathUrl(storagePath)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 120 })
+    }
+  );
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result.message || result.error || "O ZIP não foi encontrado no Storage.");
+  }
+
+  const signedPath = result.signedURL || result.signedUrl || result.url;
+  if (typeof signedPath !== "string" || !signedPath) {
+    throw new Error("O Storage não forneceu um link temporário para validar o ZIP.");
+  }
+
+  const base = supabaseBaseUrl();
+  const downloadUrl = /^https?:\/\//i.test(signedPath)
+    ? signedPath
+    : signedPath.startsWith("/storage/v1/")
+      ? `${base}${signedPath}`
+      : signedPath.startsWith("/")
+        ? `${base}/storage/v1${signedPath}`
+        : null;
+
+  if (!downloadUrl) throw new Error("O Storage retornou um link de download inválido.");
+
+  const head = await fetch(downloadUrl, {
+    method: "HEAD",
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!head.ok) {
+    throw new Error(`O ZIP não está acessível para os agentes (HTTP ${head.status}).`);
+  }
+
+  const contentLength = Number(head.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 0 && contentLength !== Number(expectedSize)) {
+    throw new Error(`O tamanho armazenado (${contentLength} bytes) não confere com o tamanho registrado (${expectedSize} bytes).`);
+  }
+
+  return { projectRef: supabaseProjectRef(), size: contentLength || null };
 }
 
 function safeCorePath(value) {
@@ -321,7 +413,7 @@ module.exports = async (req, res) => {
     });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseUrl = supabaseBaseUrl();
 
   // TESTAR SUPABASE
   if (action === "supabase_test" && req.method === "GET") {
@@ -342,6 +434,9 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Conexão com Supabase estabelecida!",
+        projectRef: supabaseProjectRef(),
+        agentProjectRef: AGENT_SUPABASE_PROJECT_REF,
+        agentProjectMatch: supabaseProjectRef() === AGENT_SUPABASE_PROJECT_REF,
         releases: result
       });
     } catch (error) {
@@ -384,20 +479,44 @@ module.exports = async (req, res) => {
     }
   }
 
-  // PUBLICAR VERSÃO
+  // PUBLICAR VERSÃO — só publica depois de confirmar que o arquivo existe
+  // e que o painel utiliza o mesmo projeto Supabase consultado pelos agentes.
   if (action === "publish_release" && req.method === "POST") {
     try {
+      assertAgentSupabaseProject();
       const { id } = req.body || {};
 
-      if (
-        typeof id !== "string" ||
-        !id.trim() ||
-        id.length > 100
-      ) {
-        return res.status(400).json({
-          error: "Identificador da versão inválido."
-        });
+      if (typeof id !== "string" || !id.trim() || id.length > 100) {
+        return res.status(400).json({ error: "Identificador da versão inválido." });
       }
+
+      const lookup = await supabaseRequest(
+        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status,storage_path,sha256,package_size`
+      );
+      const releaseRows = await lookup.json().catch(() => []);
+      if (!lookup.ok || !Array.isArray(releaseRows)) {
+        throw new Error("Não foi possível validar o registro da versão.");
+      }
+      if (!releaseRows.length) {
+        return res.status(404).json({ error: "Versão não encontrada." });
+      }
+
+      const release = releaseRows[0];
+      if (!/^\d+\.\d+\.\d+$/.test(String(release.version || ""))) {
+        return res.status(400).json({ error: "A versão cadastrada possui um número inválido." });
+      }
+      if (!/^[a-f0-9]{64}$/i.test(String(release.sha256 || ""))) {
+        return res.status(400).json({ error: "O SHA-256 cadastrado é inválido." });
+      }
+      if (!Number.isSafeInteger(Number(release.package_size)) || Number(release.package_size) <= 0) {
+        return res.status(400).json({ error: "O tamanho do pacote cadastrado é inválido." });
+      }
+
+      await verifyReleaseObject(
+        release.version,
+        release.storage_path,
+        Number(release.package_size)
+      );
 
       const response = await supabaseRequest(
         `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status`,
@@ -407,40 +526,29 @@ module.exports = async (req, res) => {
             "Content-Type": "application/json",
             Prefer: "return=representation"
           },
-          body: JSON.stringify({
-            status: "published"
-          })
+          body: JSON.stringify({ status: "published" })
         }
       );
-
-      const result = await response.json();
+      const result = await response.json().catch(() => []);
 
       if (!response.ok) {
         console.error("[PUBLISH RELEASE]", result);
-
         return res.status(400).json({
-          error: "Não foi possível publicar a versão.",
-          details: result.message || result.error || "Erro desconhecido"
+          error: result.message || result.error || "Não foi possível publicar a versão."
         });
       }
-
-      if (!result.length) {
-        return res.status(404).json({
-          error: "Versão não encontrada."
-        });
-      }
+      if (!result.length) return res.status(404).json({ error: "Versão não encontrada." });
 
       return res.status(200).json({
         success: true,
-        message: "Versão publicada com sucesso!",
+        message: `Versão ${release.version} validada no Storage e publicada para os agentes.`,
         release: result[0]
       });
 
     } catch (error) {
       console.error("[PUBLISH RELEASE]", error);
-
-      return res.status(500).json({
-        error: "Erro ao publicar a versão."
+      return res.status(error.code === "SUPABASE_PROJECT_MISMATCH" ? 409 : 502).json({
+        error: error.message || "Erro ao publicar a versão."
       });
     }
   }
@@ -448,6 +556,7 @@ module.exports = async (req, res) => {
   // PREPARAR UPLOAD DE PACOTE ZIP
   if (action === "create_upload" && req.method === "POST") {
     try {
+      assertAgentSupabaseProject();
       const { version, fileName, fileSize } = req.body || {};
 
       if (
@@ -503,9 +612,11 @@ module.exports = async (req, res) => {
         });
       }
 
-      const signedUrl = result.url.startsWith("http")
+      const signedUrl = /^https?:\/\//i.test(result.url)
         ? result.url
-        : `${supabaseUrl}/storage/v1${result.url}`;
+        : result.url.startsWith("/storage/v1/")
+          ? `${supabaseUrl}${result.url}`
+          : `${supabaseUrl}/storage/v1${result.url.startsWith("/") ? result.url : `/${result.url}`}`;
 
       return res.status(200).json({
         success: true,
@@ -516,8 +627,8 @@ module.exports = async (req, res) => {
     } catch (error) {
       console.error("[CREATE UPLOAD]", error);
 
-      return res.status(500).json({
-        error: "Erro ao preparar o envio."
+      return res.status(error.code === "SUPABASE_PROJECT_MISMATCH" ? 409 : 500).json({
+        error: error.message || "Erro ao preparar o envio."
       });
     }
   }
@@ -571,6 +682,10 @@ module.exports = async (req, res) => {
         });
       }
 
+      // Não registra um release se o ZIP não estiver acessível no mesmo Supabase
+      // que os agentes consultam.
+      await verifyReleaseObject(version, storagePath, packageSize);
+
       const response = await supabaseRequest(
         "/rest/v1/bot_releases",
         {
@@ -612,8 +727,8 @@ module.exports = async (req, res) => {
     } catch (error) {
       console.error("[SAVE RELEASE]", error);
 
-      return res.status(500).json({
-        error: "Erro ao registrar a versão."
+      return res.status(error.code === "SUPABASE_PROJECT_MISMATCH" ? 409 : 502).json({
+        error: error.message || "Erro ao registrar a versão."
       });
     }
   }
@@ -642,7 +757,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // PREPARAR UPLOAD OU SUBSTITUIÇÃO DE ARQUIVO DO NÚCLEO
+    // PREPARAR UPLOAD OU SUBSTITUIÇÃO DE ARQUIVO DO NÚCLEO
   if (action === "create_core_upload" && req.method === "POST") {
     try {
       const { filePath, fileSize } = req.body || {};
@@ -691,9 +806,11 @@ module.exports = async (req, res) => {
         });
       }
 
-      const signedUrl = result.url.startsWith("http")
+      const signedUrl = /^https?:\/\//i.test(result.url)
         ? result.url
-        : `${supabaseUrl}/storage/v1${result.url}`;
+        : result.url.startsWith("/storage/v1/")
+          ? `${supabaseUrl}${result.url}`
+          : `${supabaseUrl}/storage/v1${result.url.startsWith("/") ? result.url : `/${result.url}`}`;
 
       return res.status(200).json({
         success: true,
