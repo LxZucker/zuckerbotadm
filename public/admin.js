@@ -59,7 +59,7 @@ if (dashboardScreen) {
         window.location.href = "/";
         return;
       }
-      await Promise.all([loadReleases(), loadCoreFiles(), loadAccounts(), loadUpdateReports()]);
+      await Promise.all([loadReleases(), loadCoreFiles(), loadAccounts(), loadUpdateReports(), checkReleaseCompatibility()]);
     } catch {
       window.location.href = "/";
     }
@@ -194,6 +194,28 @@ async function loadReleases() {
 
 const refreshReleasesButton = document.getElementById("refresh-releases");
 if (refreshReleasesButton) refreshReleasesButton.addEventListener("click", loadReleases);
+
+async function checkReleaseCompatibility() {
+  const status = document.getElementById("release-compatibility-status");
+  if (!status) return;
+
+  status.style.color = "#aeb4bf";
+  status.textContent = "Verificando se painel e agentes usam o mesmo projeto Supabase...";
+
+  try {
+    const result = await api("supabase_test");
+    if (result.agentProjectMatch) {
+      status.style.color = "#19e68c";
+      status.textContent = `Conexão correta: painel e agentes usam o mesmo Supabase (${result.projectRef}).`;
+    } else {
+      status.style.color = "#ff747d";
+      status.textContent = `ERRO DE INTEGRAÇÃO: o painel usa ${result.projectRef}, mas os agentes consultam ${result.agentProjectRef}. Ajuste SUPABASE_URL nas variáveis da Vercel do painel administrativo.`;
+    }
+  } catch (error) {
+    status.style.color = "#ff747d";
+    status.textContent = `Não foi possível validar o Supabase: ${error.message}`;
+  }
+}
 
 const releaseForm = document.getElementById("release-form");
 const releaseFileInput = document.getElementById("release-file");
@@ -881,4 +903,4 @@ if (refreshDevicesButton) {
 
 if (devicesList) {
   loadDevices();
-  }
+    }
