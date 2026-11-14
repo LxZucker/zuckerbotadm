@@ -1,6 +1,6 @@
 
 const crypto = require("crypto");
-const { getAccountAccessById, getAccountAccessForUser, updateAccountControl } = require("../lib/account-access");
+const { getAccountAccessById, getAccountAccessForUser, updateAccountControl } = require("../account-access");
 
 const BUCKET = "zuckerbots-releases";
 const CORE_PREFIX = "core/";
