@@ -444,6 +444,19 @@ if (coreFileForm) {
 // ==========================================
 
 const devicesList = document.getElementById("devices-list");
+const searchDevices = document.getElementById("search-devices");
+
+if (searchDevices && devicesList) {
+  searchDevices.addEventListener("input", () => {
+    const search = searchDevices.value.toLowerCase().trim();
+
+    Array.from(devicesList.children).forEach(card => {
+      card.style.display = card.textContent.toLowerCase().includes(search)
+        ? ""
+        : "none";
+    });
+  });
+}
 const devicesMessage = document.getElementById("devices-message");
 const refreshDevicesButton = document.getElementById("refresh-devices");
 
