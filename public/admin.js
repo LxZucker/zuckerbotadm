@@ -61,8 +61,6 @@ if (loginForm) {
 }
 
 if (dashboardScreen) {
-
-if (dashboardScreen) {
   async function protectDashboard() {
     let result;
 
