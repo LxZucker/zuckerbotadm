@@ -985,6 +985,148 @@ module.exports = async (req, res) => {
     }
   }
 
+  // ==========================================
+  // EXCLUIR CONTA DEFINITIVAMENTE
+  // ==========================================
+
+  if (action === "delete_account" && req.method === "POST") {
+    try {
+      const { userId } = req.body || {};
+
+      if (
+        typeof userId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(userId)
+      ) {
+        return res.status(400).json({
+          error: "ID da conta inválido."
+        });
+      }
+
+      // Garante que estamos usando o mesmo Supabase dos bots.
+      assertAgentSupabaseProject();
+
+      const userFilter = encodeURIComponent(userId);
+
+      // 1. Confirma que a conta existe.
+      const userResponse = await supabaseRequest(
+        `/auth/v1/admin/users/${userFilter}`
+      );
+
+      const userData = await userResponse.json().catch(() => ({}));
+
+      if (!userResponse.ok || !userData.id) {
+        return res.status(404).json({
+          error: "Conta não encontrada."
+        });
+      }
+
+      // 2. Localiza os dispositivos da conta.
+      const devicesResponse = await supabaseRequest(
+        `/rest/v1/devices?user_id=eq.${userFilter}&select=id`
+      );
+
+      const devices = await devicesResponse.json().catch(() => []);
+
+      if (!devicesResponse.ok || !Array.isArray(devices)) {
+        throw new Error("Não foi possível localizar os dispositivos.");
+      }
+
+      const deviceIds = devices
+        .map(device => device.id)
+        .filter(id => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id));
+
+      // 3. Revoga imediatamente a autorização dos bots.
+      const revokeResponse = await supabaseRequest(
+        `/rest/v1/devices?user_id=eq.${userFilter}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            agent_token_hash: null,
+            whatsapp_connected: false
+          })
+        }
+      );
+
+      if (!revokeResponse.ok) {
+        throw new Error("Não foi possível revogar a autorização dos bots.");
+      }
+
+      // 4. Apaga as sessões vinculadas aos dispositivos.
+      if (deviceIds.length) {
+        const sessionsResponse = await supabaseRequest(
+          `/rest/v1/bot_sessions?device_id=in.(${deviceIds.join(",")})`,
+          { method: "DELETE" }
+        );
+
+        if (!sessionsResponse.ok) {
+          throw new Error("Falha ao apagar sessões do bot.");
+        }
+      }
+
+      // 5. Apaga os demais registros vinculados à conta.
+      const tables = [
+        "whatsapp_pairing",
+        "agent_activations",
+        "agent_commands",
+        "bot_settings",
+        "command_logs",
+        "divulgacao_logs",
+        "bot_update_events",
+        "whatsapp_messages"
+      ];
+
+      for (const table of tables) {
+        const response = await supabaseRequest(
+          `/rest/v1/${table}?user_id=eq.${userFilter}`,
+          { method: "DELETE" }
+        );
+
+        if (!response.ok) {
+          const details = await response.text();
+          console.error("[DELETE ACCOUNT]", table, details);
+          throw new Error(`Falha ao apagar registros de ${table}.`);
+        }
+      }
+
+      // 6. Apaga os dispositivos da conta.
+      const deviceDelete = await supabaseRequest(
+        `/rest/v1/devices?user_id=eq.${userFilter}`,
+        { method: "DELETE" }
+      );
+
+      if (!deviceDelete.ok) {
+        throw new Error("Falha ao apagar os dispositivos.");
+      }
+
+      // 7. Por último, exclui definitivamente a conta do Supabase Auth.
+      const authDelete = await supabaseRequest(
+        `/auth/v1/admin/users/${userFilter}`,
+        { method: "DELETE" }
+      );
+
+      if (!authDelete.ok) {
+        const details = await authDelete.text();
+        console.error("[DELETE ACCOUNT AUTH]", details);
+        throw new Error("Os dados foram tratados, mas o Supabase não conseguiu excluir a conta.");
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Conta e dados vinculados excluídos com sucesso."
+      });
+
+    } catch (error) {
+      console.error("[DELETE ACCOUNT]", error);
+
+      return res.status(502).json({
+        error: error.message || "Não foi possível excluir a conta."
+      });
+    }
+  }
+  
   // Lista todas as contas cadastradas, inclusive as que ainda não possuem bot vinculado.
   if (action === "list_accounts" && req.method === "GET") {
     try {
