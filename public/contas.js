@@ -142,26 +142,44 @@ async function loadAccounts() {
 
   try {
     const result = await api("list_accounts");
-    const devicesResult = await api("list_devices");
-const devices = Array.isArray(devicesResult.devices)
-  ? devicesResult.devices
-  : [];
+
+    // BUSCAR DISPOSITIVOS
+    let devices = [];
+
+    try {
+      const devicesResult = await api("list_devices");
+
+      devices = Array.isArray(devicesResult.devices)
+        ? devicesResult.devices
+        : [];
+    } catch (deviceError) {
+      console.warn(
+        "[CONTAS] Não foi possível carregar os dispositivos:",
+        deviceError
+      );
+    }
 
     const accounts = Array.isArray(result.accounts)
       ? result.accounts
       : [];
-// INFORMAÇÕES DO BOT
-const device = devicesByUser.get(account.user_id);
 
-const whatsappNumber = document.createElement("p");
-whatsappNumber.textContent = device?.whatsapp_number
-  ? `Número do bot: ${device.whatsapp_number}`
-  : "Número do bot: não registrado";
+    // RELACIONAR DISPOSITIVOS ÀS CONTAS
+    const devicesByUser = new Map();
 
-const lastOnline = document.createElement("p");
-lastOnline.textContent = device?.last_seen
-  ? `Última vez online: ${formatDate(device.last_seen)}`
-  : "Última vez online: sem registro";
+    for (const device of devices) {
+      if (!device.user_id) continue;
+
+      const previous = devicesByUser.get(device.user_id);
+
+      if (
+        !previous ||
+        new Date(device.last_seen || 0).getTime() >
+        new Date(previous.last_seen || 0).getTime()
+      ) {
+        devicesByUser.set(device.user_id, device);
+      }
+    }
+
     if (!accounts.length) {
       accountsMessage.textContent = "Nenhuma conta encontrada.";
       return;
@@ -226,29 +244,31 @@ lastOnline.textContent = device?.last_seen
       const created = document.createElement("p");
       created.textContent =
         `Cadastro: ${formatDate(account.created_at)}`;
-// INFORMAÇÕES DO BOT
-const device = devicesByUser.get(account.user_id);
 
-const whatsappNumber = document.createElement("p");
-whatsappNumber.textContent = device?.whatsapp_number
-  ? `Número do bot: ${device.whatsapp_number}`
-  : "Número do bot: não registrado";
+      // INFORMAÇÕES DO BOT
+      const device = devicesByUser.get(account.user_id);
 
-const lastOnline = document.createElement("p");
-lastOnline.textContent = device?.last_seen
-  ? `Última vez online: ${formatDate(device.last_seen)}`
-  : "Última vez online: sem registro";
-      
+      const whatsappNumber = document.createElement("p");
+      whatsappNumber.textContent = device?.whatsapp_number
+        ? `Número do bot: ${device.whatsapp_number}`
+        : "Número do bot: não registrado";
+
+      const lastOnline = document.createElement("p");
+      lastOnline.textContent = device?.last_seen
+        ? `Última vez online: ${formatDate(device.last_seen)}`
+        : "Última vez online: sem registro";
+
       card.append(
-  title,
-  identity,
-  email,
-  status,
-  validity,
-  created,
-  whatsappNumber,
-  lastOnline
-);
+        title,
+        identity,
+        email,
+        status,
+        validity,
+        created,
+        whatsappNumber,
+        lastOnline
+      );
+
       // RENOVAÇÃO DE VALIDADE
       const renewalInput = document.createElement("input");
       renewalInput.type = "number";
@@ -501,4 +521,4 @@ if (refreshAccountsButton) {
 
 // INICIAR
 protectAccountsPage();
-  
+    
