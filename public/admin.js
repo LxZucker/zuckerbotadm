@@ -716,6 +716,36 @@ if (!reason) {
     }
   });
 
+  const forceUnlinkButton = document.createElement("button");
+  forceUnlinkButton.type = "button";
+  forceUnlinkButton.textContent = "FORÇAR DESVINCULAÇÃO";
+  forceUnlinkButton.className = "logout";
+  forceUnlinkButton.style.cssText =
+    "width:100%;margin:10px 0;border-color:#ff747d;color:#ff747d;";
+
+  forceUnlinkButton.addEventListener("click", async () => {
+    if (!confirm(
+      `Deseja realmente desvincular o dispositivo da conta ${device.account_name || device.user_id}?\n\nA autorização antiga será revogada, mesmo que o bot esteja offline.`
+    )) return;
+
+    forceUnlinkButton.disabled = true;
+    forceUnlinkButton.textContent = "DESVINCULANDO...";
+
+    try {
+      await api("force_unlink_device", "POST", {
+        deviceId: device.id,
+        userId: device.user_id
+      });
+
+      alert("Dispositivo desvinculado com sucesso! A autorização antiga foi revogada.");
+      await loadDevices();
+    } catch (error) {
+      alert("Erro ao desvincular: " + error.message);
+      forceUnlinkButton.disabled = false;
+      forceUnlinkButton.textContent = "FORÇAR DESVINCULAÇÃO";
+    }
+  });
+    
   card.append(
     name,
     account,
@@ -727,6 +757,7 @@ if (!reason) {
     validity,
     validityDaysInput,
     validityButton,
+    forceUnlinkButton,
     suspension
   );
 
