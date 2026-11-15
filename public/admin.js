@@ -14,7 +14,16 @@ async function api(action, method = "GET", data = {}) {
   const response = await fetch(url, options);
   const result = await response.json();
 
-  if (!response.ok) throw new Error(result.error || "Erro na comunicação com o servidor");
+  if (!response.ok) {
+    const details = [
+      result.error,
+      result.details,
+      result.code ? "Código: " + result.code : "",
+      result.hint ? "Dica: " + result.hint : ""
+    ].filter(Boolean).join("\n");
+
+    throw new Error(details || "Erro na comunicação com o servidor");
+  }
   return result;
 }
 
