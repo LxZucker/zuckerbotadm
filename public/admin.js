@@ -5,7 +5,9 @@ async function api(action, method = "GET", data = {}) {
     headers: { "Content-Type": "application/json" }
   };
 
-  if (method === "POST") options.body = JSON.stringify({ ...data, action });
+  if (method === "POST") {
+    options.body = JSON.stringify({ ...data, action });
+  }
 
   const url = method === "GET"
     ? `/api/admin?action=${encodeURIComponent(action)}`
@@ -24,6 +26,7 @@ async function api(action, method = "GET", data = {}) {
 
     throw new Error(details || "Erro na comunicação com o servidor");
   }
+
   return result;
 }
 
@@ -36,6 +39,7 @@ if (loginForm) {
 
   loginForm.addEventListener("submit", async event => {
     event.preventDefault();
+
     loginError.textContent = "";
     loginButton.disabled = true;
     loginButton.textContent = "VERIFICANDO...";
@@ -45,6 +49,7 @@ if (loginForm) {
         username: document.getElementById("username").value,
         password: document.getElementById("password").value
       });
+
       loginForm.reset();
       window.location.href = "/admin.html";
     } catch (error) {
@@ -56,7 +61,9 @@ if (loginForm) {
   });
 
   api("auth").then(result => {
-    if (result.authenticated) window.location.href = "/admin.html";
+    if (result.authenticated) {
+      window.location.href = "/admin.html";
+    }
   }).catch(() => {});
 }
 
@@ -79,25 +86,26 @@ if (dashboardScreen) {
 
     try {
       await Promise.all([
-  loadReleases(),
-  loadCoreFiles(),
-  loadUpdateReports(),
-  checkReleaseCompatibility()
-]);
+        loadReleases(),
+        loadCoreFiles(),
+        loadUpdateReports(),
+        checkReleaseCompatibility()
+      ]);
     } catch (error) {
-  console.error("[ADMIN DASHBOARD]", error);
-  alert("Erro ao carregar o painel: " + error.message);
-}
+      console.error("[ADMIN DASHBOARD]", error);
+      alert("Erro ao carregar o painel: " + error.message);
+    }
   }
 
-    queueMicrotask(protectDashboard);
+  queueMicrotask(protectDashboard);
 }
 
-
 const logoutButton = document.getElementById("logout-button");
+
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     logoutButton.disabled = true;
+
     try {
       await api("logout", "POST");
       window.location.href = "/";
@@ -111,110 +119,15 @@ if (logoutButton) {
 async function calculateSHA256(file) {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-const releasesContainer = document.getElementById("releases-list");
-const releasesMessage = document.getElementById("releases-message");
-
-function formatDate(value) {
-  if (!value) return "Data não informada";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Data não informada" : date.toLocaleString("pt-BR");
-}
-
-function makeEmptyState(message) {
-  const empty = document.createElement("div");
-  empty.className = "empty-state";
-  empty.textContent = message;
-  return empty;
-}
-
-async function loadReleases() {
-  if (!releasesContainer) return;
-  releasesContainer.innerHTML = "";
-  if (releasesMessage) releasesMessage.textContent = "Carregando histórico de versões...";
-
-  try {
-    const result = await api("list_releases");
-    const releases = Array.isArray(result.releases) ? result.releases : [];
-    releasesContainer.innerHTML = "";
-
-    if (!releases.length) {
-      releasesContainer.appendChild(makeEmptyState("Nenhuma versão cadastrada ainda."));
-      if (releasesMessage) releasesMessage.textContent = "Seu histórico aparecerá aqui quando você cadastrar uma versão.";
-      return;
-    }
-
-    if (releasesMessage) releasesMessage.textContent = `${releases.length} versão(ões) no histórico.`;
-
-    releases.forEach(release => {
-      const published = release.status === "published";
-      const card = document.createElement("article");
-      card.className = `release-item ${published ? "is-published" : "is-draft"}`;
-
-      const main = document.createElement("div");
-      main.className = "release-main";
-
-      const titleRow = document.createElement("div");
-      titleRow.className = "release-title-row";
-
-      const title = document.createElement("h3");
-      title.className = "release-title";
-      title.textContent = `Versão ${release.version}`;
-
-      const status = document.createElement("span");
-      status.className = `release-status ${published ? "published" : "draft"}`;
-      status.textContent = published ? "✓ PUBLICADA" : "● RASCUNHO";
-
-      titleRow.append(title, status);
-
-      const date = document.createElement("p");
-      date.className = "release-date";
-      date.textContent = `Criada em ${formatDate(release.created_at)}`;
-
-      const notes = document.createElement("p");
-      notes.className = "release-notes";
-      notes.textContent = release.release_notes || "Sem descrição cadastrada para esta versão.";
-
-      main.append(titleRow, date, notes);
-      card.appendChild(main);
-
-      if (!published) {
-        const actions = document.createElement("div");
-        actions.className = "release-actions";
-
-        const publishButton = document.createElement("button");
-        publishButton.type = "button";
-        publishButton.className = "publish-release-button";
-        publishButton.textContent = "PUBLICAR VERSÃO ↗";
-
-        publishButton.addEventListener("click", async () => {
-          if (!confirm(`Deseja realmente publicar a versão ${release.version}? Essa ação disponibiliza a atualização aos bots que consultarem o painel.`)) return;
-
-          publishButton.disabled = true;
-          publishButton.textContent = "PUBLICANDO...";
-
-          try {
-            const publishedResult = await api("publish_release", "POST", { id: String(release.id) });
-            alert(publishedResult.message || "Versão publicada!");
-            await loadReleases();
-          } catch (error) {
-            alert(error.message);
-            publishButton.disabled = false;
-            publishButton.textContent = "PUBLICAR VERSÃO ↗";
-          }
-        });
-
-        actions.appendChild(publishButton);
-        card.appendChild(actions);
-      }
-
-      releasesContainer.appendChild(card);
-    });
-  } catch (error) {
-    releasesContainer.innerHTML = "";
-
+// ==========================================
+// ATUALIZAÇÕES / VERSÕES
+// ==========================================
 
 const draftReleasesContainer = document.getElementById("draft-releases-list");
 const publishedReleasesContainer = document.getElementById("published-releases-list");
@@ -222,7 +135,9 @@ const releasesMessage = document.getElementById("releases-message");
 
 function formatDate(value) {
   if (!value) return "Data não informada";
+
   const date = new Date(value);
+
   return Number.isNaN(date.getTime())
     ? "Data não informada"
     : date.toLocaleString("pt-BR");
@@ -247,12 +162,18 @@ async function loadReleases() {
 
   try {
     const result = await api("list_releases");
+
     const releases = Array.isArray(result.releases)
       ? result.releases
       : [];
 
-    const drafts = releases.filter(release => release.status !== "published");
-    const published = releases.filter(release => release.status === "published");
+    const drafts = releases.filter(
+      release => release.status !== "published"
+    );
+
+    const published = releases.filter(
+      release => release.status === "published"
+    );
 
     if (releasesMessage) {
       releasesMessage.textContent =
@@ -275,42 +196,60 @@ async function loadReleases() {
       const card = document.createElement("article");
       card.className = `release-item ${isPublished ? "is-published" : "is-draft"}`;
 
+      const main = document.createElement("div");
+      main.className = "release-main";
+
+      const titleRow = document.createElement("div");
+      titleRow.className = "release-title-row";
+
       const title = document.createElement("h3");
+      title.className = "release-title";
       title.textContent = `Versão ${release.version}`;
 
       const status = document.createElement("span");
       status.className = `release-status ${isPublished ? "published" : "draft"}`;
       status.textContent = isPublished ? "✓ PUBLICADA" : "● RASCUNHO";
 
+      titleRow.append(title, status);
+
       const date = document.createElement("p");
+      date.className = "release-date";
       date.textContent = `Criada em ${formatDate(release.created_at)}`;
 
       const notes = document.createElement("p");
+      notes.className = "release-notes";
       notes.textContent =
         release.release_notes || "Sem descrição cadastrada para esta versão.";
 
-      card.append(title, status, date, notes);
+      main.append(titleRow, date, notes);
+      card.appendChild(main);
 
       if (!isPublished) {
+        const actions = document.createElement("div");
+        actions.className = "release-actions";
+
         const editButton = document.createElement("button");
         editButton.type = "button";
         editButton.className = "edit-release-button";
         editButton.textContent = "EDITAR RASCUNHO ✎";
 
         editButton.addEventListener("click", () => {
-          alert("A edição dos rascunhos será ativada na próxima etapa.");
+          alert(
+            "A edição completa do rascunho ainda precisa da ação de atualização no servidor."
+          );
         });
 
         const publishButton = document.createElement("button");
         publishButton.type = "button";
         publishButton.className = "publish-release-button";
-        publishButton.style.marginTop = "8px";
         publishButton.textContent = "PUBLICAR VERSÃO ↗";
 
         publishButton.addEventListener("click", async () => {
           if (!confirm(
             `Deseja realmente publicar a versão ${release.version}? Essa ação disponibiliza a atualização aos bots que consultarem o painel.`
-          )) return;
+          )) {
+            return;
+          }
 
           publishButton.disabled = true;
           publishButton.textContent = "PUBLICANDO...";
@@ -331,7 +270,8 @@ async function loadReleases() {
           }
         });
 
-        card.append(editButton, publishButton);
+        actions.append(editButton, publishButton);
+        card.appendChild(actions);
       }
 
       return card;
@@ -372,28 +312,37 @@ const refreshReleasesButton = document.getElementById("refresh-releases");
 if (refreshReleasesButton) {
   refreshReleasesButton.addEventListener("click", loadReleases);
 }
-    
+
 async function checkReleaseCompatibility() {
   const status = document.getElementById("release-compatibility-status");
   if (!status) return;
 
   status.style.color = "#aeb4bf";
-  status.textContent = "Verificando se painel e agentes usam o mesmo projeto Supabase...";
+  status.textContent =
+    "Verificando se painel e agentes usam o mesmo projeto Supabase...";
 
   try {
     const result = await api("supabase_test");
+
     if (result.agentProjectMatch) {
       status.style.color = "#19e68c";
-      status.textContent = `Conexão correta: painel e agentes usam o mesmo Supabase (${result.projectRef}).`;
+      status.textContent =
+        `Conexão correta: painel e agentes usam o mesmo Supabase (${result.projectRef}).`;
     } else {
       status.style.color = "#ff747d";
-      status.textContent = `ERRO DE INTEGRAÇÃO: o painel usa ${result.projectRef}, mas os agentes consultam ${result.agentProjectRef}. Ajuste SUPABASE_URL nas variáveis da Vercel do painel administrativo.`;
+      status.textContent =
+        `ERRO DE INTEGRAÇÃO: o painel usa ${result.projectRef}, mas os agentes consultam ${result.agentProjectRef}. Ajuste SUPABASE_URL nas variáveis da Vercel do painel administrativo.`;
     }
   } catch (error) {
     status.style.color = "#ff747d";
-    status.textContent = `Não foi possível validar o Supabase: ${error.message}`;
+    status.textContent =
+      `Não foi possível validar o Supabase: ${error.message}`;
   }
 }
+
+// ==========================================
+// CADASTRAR NOVA ATUALIZAÇÃO
+// ==========================================
 
 const releaseForm = document.getElementById("release-form");
 const releaseFileInput = document.getElementById("release-file");
@@ -404,14 +353,20 @@ if (releaseFileInput) {
     const label = document.getElementById("release-file-label");
     const hint = document.getElementById("release-file-hint");
     const area = document.getElementById("release-upload-area");
+
+    if (!label || !hint || !area) return;
+
     if (!file) {
       label.textContent = "Selecionar pacote ZIP";
       hint.textContent = "Toque para escolher o arquivo · até 50 MB";
       area.classList.remove("is-selected");
       return;
     }
+
     label.textContent = file.name;
-    hint.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB · arquivo selecionado`;
+    hint.textContent =
+      `${(file.size / (1024 * 1024)).toFixed(2)} MB · arquivo selecionado`;
+
     area.classList.add("is-selected");
   });
 }
@@ -424,7 +379,7 @@ if (releaseForm) {
     const button = document.getElementById("publish-button");
     const version = document.getElementById("release-version").value.trim();
     const notes = document.getElementById("release-notes").value.trim();
-    const file = document.getElementById("release-file").files[0];
+    const file = releaseFileInput?.files[0];
 
     message.textContent = "";
     message.style.color = "#ff747d";
@@ -433,10 +388,12 @@ if (releaseForm) {
       message.textContent = "Use o formato X.Y.Z. Exemplo: 10.3.3";
       return;
     }
+
     if (!file || !file.name.toLowerCase().endsWith(".zip")) {
       message.textContent = "Selecione um arquivo ZIP.";
       return;
     }
+
     if (file.size <= 0 || file.size > 50 * 1024 * 1024) {
       message.textContent = "O ZIP precisa ter até 50 MB.";
       return;
@@ -455,7 +412,9 @@ if (releaseForm) {
       button.textContent = "PREPARANDO ENVIO...";
 
       const upload = await api("create_upload", "POST", {
-        version, fileName: file.name, fileSize: file.size
+        version,
+        fileName: file.name,
+        fileSize: file.size
       });
 
       message.textContent = "Enviando pacote ao Supabase...";
@@ -463,7 +422,10 @@ if (releaseForm) {
 
       const uploadResponse = await fetch(upload.signedUrl, {
         method: "PUT",
-        headers: { "Content-Type": "application/zip", "x-upsert": "false" },
+        headers: {
+          "Content-Type": "application/zip",
+          "x-upsert": "false"
+        },
         body: file
       });
 
@@ -485,21 +447,33 @@ if (releaseForm) {
       });
 
       message.style.color = "#19e68c";
-      message.textContent = `✓ Versão ${version} salva como rascunho. Ela ainda não foi publicada.`;
+      message.textContent =
+        `✓ Versão ${version} salva como rascunho. Ela ainda não foi publicada.`;
+
       releaseForm.reset();
 
-      if (releaseFileInput) releaseFileInput.dispatchEvent(new Event("change"));
+      if (releaseFileInput) {
+        releaseFileInput.dispatchEvent(new Event("change"));
+      }
+
       await loadReleases();
+
     } catch (error) {
       console.error("[PUBLICAÇÃO]", error);
       message.style.color = "#ff747d";
-      message.textContent = error.message || "Não foi possível preparar a atualização.";
+      message.textContent =
+        error.message || "Não foi possível preparar a atualização.";
     } finally {
       button.disabled = false;
-      button.innerHTML = 'PREPARAR NOVA PUBLICAÇÃO <span>↗</span>';
+      button.innerHTML =
+        'PREPARAR NOVA PUBLICAÇÃO <span>↗</span>';
     }
   });
-}
+  }
+
+// ==========================================
+// ARQUIVOS DO NÚCLEO
+// ==========================================
 
 const coreFilesContainer = document.getElementById("core-files-list");
 const coreFilesMessage = document.getElementById("core-files-message");
@@ -509,25 +483,37 @@ function formatFileSize(bytes) {
   if (!bytes) return "Tamanho desconhecido";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 async function loadCoreFiles() {
   if (!coreFilesContainer) return;
+
   coreFilesContainer.innerHTML = "";
-  if (coreFilesMessage) coreFilesMessage.textContent = "Carregando arquivos do núcleo...";
+
+  if (coreFilesMessage) {
+    coreFilesMessage.textContent = "Carregando arquivos do núcleo...";
+  }
 
   try {
     const result = await api("list_core_files");
     const files = Array.isArray(result.files) ? result.files : [];
+
     coreFilesContainer.innerHTML = "";
 
     if (!files.length) {
-      coreFilesMessage.textContent = "Nenhum arquivo encontrado na pasta core/.";
+      if (coreFilesMessage) {
+        coreFilesMessage.textContent =
+          "Nenhum arquivo encontrado na pasta core/.";
+      }
       return;
     }
 
-    coreFilesMessage.textContent = `${files.length} arquivo(s) armazenado(s).`;
+    if (coreFilesMessage) {
+      coreFilesMessage.textContent =
+        `${files.length} arquivo(s) armazenado(s).`;
+    }
 
     files.forEach(file => {
       const card = document.createElement("article");
@@ -551,11 +537,20 @@ async function loadCoreFiles() {
       deleteButton.textContent = "EXCLUIR ARQUIVO";
 
       deleteButton.addEventListener("click", async () => {
-        if (!confirm(`Deseja excluir este arquivo do núcleo?\n\n${file.path}`)) return;
+        if (!confirm(
+          `Deseja excluir este arquivo do núcleo?\n\n${file.path}`
+        )) {
+          return;
+        }
+
         deleteButton.disabled = true;
         deleteButton.textContent = "EXCLUINDO...";
+
         try {
-          await api("delete_core_file", "POST", { storagePath: file.path });
+          await api("delete_core_file", "POST", {
+            storagePath: file.path
+          });
+
           await loadCoreFiles();
         } catch (error) {
           alert(error.message);
@@ -567,13 +562,21 @@ async function loadCoreFiles() {
       card.append(name, path, size, deleteButton);
       coreFilesContainer.appendChild(card);
     });
+
   } catch (error) {
-    coreFilesMessage.textContent = "Erro ao carregar arquivos: " + error.message;
+    if (coreFilesMessage) {
+      coreFilesMessage.textContent =
+        "Erro ao carregar arquivos: " + error.message;
+    }
   }
 }
 
-const refreshCoreFilesButton = document.getElementById("refresh-core-files");
-if (refreshCoreFilesButton) refreshCoreFilesButton.addEventListener("click", loadCoreFiles);
+const refreshCoreFilesButton =
+  document.getElementById("refresh-core-files");
+
+if (refreshCoreFilesButton) {
+  refreshCoreFilesButton.addEventListener("click", loadCoreFiles);
+}
 
 if (coreFileForm) {
   coreFileForm.addEventListener("submit", async event => {
@@ -583,38 +586,69 @@ if (coreFileForm) {
     const fileInput = document.getElementById("core-file-input");
     const message = document.getElementById("core-file-message");
     const button = coreFileForm.querySelector('button[type="submit"]');
+
     const filePath = pathInput.value.trim();
     const file = fileInput.files[0];
 
     message.style.color = "#ff747d";
-    if (!filePath) { message.textContent = "Informe o caminho do arquivo."; return; }
-    if (!file) { message.textContent = "Selecione um arquivo."; return; }
+
+    if (!filePath) {
+      message.textContent = "Informe o caminho do arquivo.";
+      return;
+    }
+
+    if (!file) {
+      message.textContent = "Selecione um arquivo.";
+      return;
+    }
+
     if (file.size <= 0 || file.size > 2 * 1024 * 1024) {
       message.textContent = "O arquivo deve ter até 2 MB.";
       return;
     }
 
-    const allowedExtensions = [".js", ".cjs", ".mjs", ".json", ".html", ".css", ".md", ".txt"];
-    const extension = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+    const allowedExtensions = [
+      ".js",
+      ".cjs",
+      ".mjs",
+      ".json",
+      ".html",
+      ".css",
+      ".md",
+      ".txt"
+    ];
+
+    const extension = filePath
+      .slice(filePath.lastIndexOf("."))
+      .toLowerCase();
+
     if (!allowedExtensions.includes(extension)) {
-      message.textContent = "Extensão não permitida. Confira o caminho informado.";
+      message.textContent =
+        "Extensão não permitida. Confira o caminho informado.";
       return;
     }
 
     button.disabled = true;
+
     try {
       message.style.color = "#19e68c";
       message.textContent = "Preparando envio seguro...";
       button.textContent = "PREPARANDO...";
 
-      const upload = await api("create_core_upload", "POST", { filePath, fileSize: file.size });
+      const upload = await api("create_core_upload", "POST", {
+        filePath,
+        fileSize: file.size
+      });
 
       message.textContent = "Enviando arquivo ao Supabase...";
       button.textContent = "ENVIANDO...";
 
       const response = await fetch(upload.signedUrl, {
         method: "PUT",
-        headers: { "Content-Type": "application/octet-stream", "x-upsert": "true" },
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "x-upsert": "true"
+        },
         body: file
       });
 
@@ -626,8 +660,10 @@ if (coreFileForm) {
 
       message.textContent = "Arquivo enviado com sucesso!";
       message.style.color = "#19e68c";
+
       coreFileForm.reset();
       await loadCoreFiles();
+
     } catch (error) {
       console.error("[CORE UPLOAD]", error);
       message.style.color = "#ff747d";
@@ -637,18 +673,25 @@ if (coreFileForm) {
       button.textContent = "ENVIAR ARQUIVO PARA O NÚCLEO ↑";
     }
   });
-                     }
-  
+}
 
 // ==========================================
 // CONTAS E RELATÓRIOS DOS AGENTES
 // ==========================================
+
 const accountsList = document.getElementById("accounts-list");
 const accountsMessage = document.getElementById("accounts-message");
 const refreshAccountsButton = document.getElementById("refresh-accounts");
-const updateReportsList = document.getElementById("update-reports-list");
-const updateReportsMessage = document.getElementById("update-reports-message");
-const refreshUpdateReportsButton = document.getElementById("refresh-update-reports");
+
+const updateReportsList =
+  document.getElementById("update-reports-list");
+
+const updateReportsMessage =
+  document.getElementById("update-reports-message");
+
+const refreshUpdateReportsButton =
+  document.getElementById("refresh-update-reports");
+
 const searchUpdates = document.getElementById("search-updates");
 
 if (searchUpdates && updateReportsList) {
@@ -656,7 +699,9 @@ if (searchUpdates && updateReportsList) {
     const search = searchUpdates.value.toLowerCase().trim();
 
     Array.from(updateReportsList.children).forEach(item => {
-      item.style.display = item.textContent.toLowerCase().includes(search)
+      item.style.display = item.textContent
+        .toLowerCase()
+        .includes(search)
         ? ""
         : "none";
     });
@@ -664,99 +709,170 @@ if (searchUpdates && updateReportsList) {
 }
 
 function remainingAccountTime(ms) {
-  const totalMinutes = Math.max(0, Math.ceil(Number(ms || 0) / 60000));
+  const totalMinutes = Math.max(
+    0,
+    Math.ceil(Number(ms || 0) / 60000)
+  );
+
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
+
   if (days) return `${days}d ${hours}h`;
   if (hours) return `${hours}h ${minutes}min`;
+
   return `${minutes}min`;
 }
 
 async function loadAccounts() {
   if (!accountsList) return;
+
   accountsMessage.textContent = "Consultando contas registradas...";
   accountsList.innerHTML = "";
+
   try {
     const result = await api("list_accounts");
-    const accounts = Array.isArray(result.accounts) ? result.accounts : [];
+
+    const accounts = Array.isArray(result.accounts)
+      ? result.accounts
+      : [];
+
     if (!accounts.length) {
       accountsMessage.textContent = "Nenhuma conta encontrada.";
       return;
     }
-    accountsMessage.textContent = `${accounts.length} conta(s) cadastrada(s).`;
+
+    accountsMessage.textContent =
+      `${accounts.length} conta(s) cadastrada(s).`;
+
     for (const account of accounts) {
       const card = document.createElement("article");
       card.className = "account-item";
+
       const title = document.createElement("h3");
       title.textContent = account.account_name || "Conta sem nome";
+
       const identity = document.createElement("p");
       identity.textContent = `ID: ${account.user_id}`;
+
       const email = document.createElement("p");
-      email.textContent = `Login: ${account.email || "Não informado"}`;
+      email.textContent =
+        `Login: ${account.email || "Não informado"}`;
+
       const status = document.createElement("span");
       status.className = "account-state";
+
       if (account.suspended) {
         status.textContent = "SUSPENSA";
         status.classList.add("suspended");
       } else if (account.validity_expired) {
         status.textContent = "VALIDADE EXPIRADA";
         status.classList.add("expired");
-      } else if (account.validity_type === "trial" && !account.renewal_count) {
+      } else if (
+        account.validity_type === "trial" &&
+        !account.renewal_count
+      ) {
         status.textContent = "PERÍODO DE TESTE";
       } else if (account.validity_type === "paid") {
-        status.textContent = `RENOVADA · ${account.renewal_count || 1} RENOVAÇÃO(ÕES)`;
+        status.textContent =
+          `RENOVADA · ${account.renewal_count || 1} RENOVAÇÃO(ÕES)`;
       } else {
         status.textContent = "VALIDADE NÃO CONFIGURADA";
         status.classList.add("expired");
       }
+
       const validity = document.createElement("p");
+
       validity.textContent = account.valid_until
-        ? `Válida até: ${formatDate(account.valid_until)}${account.validity_expired ? " · expirada" : ` · restam ${remainingAccountTime(account.validity_remaining_ms)}`}`
+        ? `Válida até: ${formatDate(account.valid_until)}${
+            account.validity_expired
+              ? " · expirada"
+              : ` · restam ${remainingAccountTime(account.validity_remaining_ms)}`
+          }`
         : "Sem data de vencimento cadastrada.";
+
       const created = document.createElement("p");
-      created.textContent = `Cadastro: ${formatDate(account.created_at)}`;
+      created.textContent =
+        `Cadastro: ${formatDate(account.created_at)}`;
+
       const renewalInput = document.createElement("input");
       renewalInput.type = "number";
       renewalInput.min = "1";
       renewalInput.max = "3650";
       renewalInput.value = "30";
-      renewalInput.setAttribute("aria-label", "Dias de validade para adicionar");
+      renewalInput.setAttribute(
+        "aria-label",
+        "Dias de validade para adicionar"
+      );
+
       const renewButton = document.createElement("button");
       renewButton.type = "button";
       renewButton.className = "logout";
       renewButton.textContent = "ADICIONAR TEMPO";
+
       renewButton.addEventListener("click", async () => {
         const days = Number(renewalInput.value);
+
         if (!Number.isInteger(days) || days < 1 || days > 3650) {
           alert("Informe entre 1 e 3650 dias.");
           return;
         }
-        if (!confirm(`Adicionar ${days} dia(s) à conta ${account.account_name}?`)) return;
+
+        if (!confirm(
+          `Adicionar ${days} dia(s) à conta ${account.account_name}?`
+        )) {
+          return;
+        }
+
         renewButton.disabled = true;
+
         try {
-          await api("set_validity", "POST", { userId: account.user_id, days });
-          await Promise.all([loadAccounts(), loadDevices()]);
+          await api("set_validity", "POST", {
+            userId: account.user_id,
+            days
+          });
+
+          await Promise.all([
+            loadAccounts(),
+            loadDevices()
+          ]);
         } catch (error) {
           alert("Não foi possível renovar: " + error.message);
           renewButton.disabled = false;
         }
       });
+
       const tools = document.createElement("div");
       tools.className = "account-tools";
       tools.append(renewalInput, renewButton);
-      card.append(title, identity, email, status, validity, created);
+
+      card.append(
+        title,
+        identity,
+        email,
+        status,
+        validity,
+        created
+      );
+
       if (account.suspended_until) {
         const suspended = document.createElement("p");
-        suspended.textContent = `Suspensa até: ${formatDate(account.suspended_until)} · ${account.suspension_reason || "Motivo não informado"}`;
+
+        suspended.textContent =
+          `Suspensa até: ${formatDate(account.suspended_until)} · ${
+            account.suspension_reason || "Motivo não informado"
+          }`;
+
         card.appendChild(suspended);
       }
-            card.appendChild(tools);
+
+      card.appendChild(tools);
 
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.textContent = "EXCLUIR CONTA";
       deleteButton.className = "logout";
+
       deleteButton.style.cssText =
         "width:100%;margin-top:12px;border-color:#ff4545;color:#ff4545;";
 
@@ -774,7 +890,9 @@ async function loadAccounts() {
 
         if (!confirm(
           `Última confirmação:\n\nDeseja realmente excluir a conta ${account.account_name}?\n\nEssa ação não poderá ser desfeita.`
-        )) return;
+        )) {
+          return;
+        }
 
         deleteButton.disabled = true;
         deleteButton.textContent = "EXCLUINDO...";
@@ -785,7 +903,11 @@ async function loadAccounts() {
           });
 
           alert("Conta excluída com sucesso!");
-          await Promise.all([loadAccounts(), loadDevices()]);
+
+          await Promise.all([
+            loadAccounts(),
+            loadDevices()
+          ]);
         } catch (error) {
           alert("Erro ao excluir conta: " + error.message);
           deleteButton.disabled = false;
@@ -796,40 +918,75 @@ async function loadAccounts() {
       card.appendChild(deleteButton);
       accountsList.appendChild(card);
     }
+
   } catch (error) {
-    accountsMessage.textContent = "Erro ao carregar contas: " + error.message;
+    accountsMessage.textContent =
+      "Erro ao carregar contas: " + error.message;
   }
 }
 
 async function loadUpdateReports() {
   if (!updateReportsList) return;
+
   updateReportsList.innerHTML = "";
   updateReportsMessage.textContent = "Consultando relatórios...";
+
   try {
     const result = await api("list_update_reports");
-    const reports = Array.isArray(result.reports) ? result.reports : [];
+
+    const reports = Array.isArray(result.reports)
+      ? result.reports
+      : [];
+
     if (!reports.length) {
-      updateReportsMessage.textContent = "Nenhum agente enviou relatório de atualização ainda.";
+      updateReportsMessage.textContent =
+        "Nenhum agente enviou relatório de atualização ainda.";
       return;
     }
-    updateReportsMessage.textContent = `${reports.length} relatório(s) recentes.`;
+
+    updateReportsMessage.textContent =
+      `${reports.length} relatório(s) recentes.`;
+
     reports.forEach(report => {
       const item = document.createElement("article");
-      item.className = `update-report-item ${report.status === "failed" ? "failed" : ""}`;
+
+      item.className =
+        `update-report-item ${report.status === "failed" ? "failed" : ""}`;
+
       const title = document.createElement("h3");
-      title.textContent = `Versão ${report.version} · ${report.status === "success" ? "CONCLUÍDA" : "FALHOU"}`;
+
+      title.textContent =
+        `Versão ${report.version} · ${
+          report.status === "success" ? "CONCLUÍDA" : "FALHOU"
+        }`;
+
       const details = document.createElement("p");
-      details.textContent = `${report.message || "Sem detalhes"} · ${formatDate(report.created_at)}`;
+
+      details.textContent =
+        `${report.message || "Sem detalhes"} · ${formatDate(report.created_at)}`;
+
       const identity = document.createElement("p");
-      identity.textContent = `Usuário: ${report.user_id} · Dispositivo: ${report.device_id}`;
+
+      identity.textContent =
+        `Usuário: ${report.user_id} · Dispositivo: ${report.device_id}`;
+
       item.append(title, details, identity);
       updateReportsList.appendChild(item);
     });
+
   } catch (error) {
-    updateReportsMessage.textContent = "Erro ao consultar relatórios: " + error.message;
+    updateReportsMessage.textContent =
+      "Erro ao consultar relatórios: " + error.message;
   }
 }
 
-if (refreshAccountsButton) refreshAccountsButton.addEventListener("click", loadAccounts);
-if (refreshUpdateReportsButton) refreshUpdateReportsButton.addEventListener("click", loadUpdateReports);
+if (refreshAccountsButton) {
+  refreshAccountsButton.addEventListener("click", loadAccounts);
+}
 
+if (refreshUpdateReportsButton) {
+  refreshUpdateReportsButton.addEventListener(
+    "click",
+    loadUpdateReports
+  );
+}
