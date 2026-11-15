@@ -415,6 +415,37 @@ module.exports = async (req, res) => {
 
   const supabaseUrl = supabaseBaseUrl();
 
+  // HISTÓRICO DE VALIDADE
+  if (action === "list_validity_history" && req.method === "GET") {
+    try {
+      const response = await supabaseRequest(
+        "/rest/v1/account_validity_history?select=*&order=created_at.desc&limit=2000"
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[VALIDITY HISTORY]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível carregar o histórico de validade."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        history: result
+      });
+
+    } catch (error) {
+      console.error("[VALIDITY HISTORY]", error);
+
+      return res.status(500).json({
+        error: "Erro ao consultar o histórico de validade."
+      });
+    }
+  }
+  
   // TESTAR SUPABASE
   if (action === "supabase_test" && req.method === "GET") {
     try {
