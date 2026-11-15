@@ -1,0 +1,394 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <title>Atualizações | ZuckerBotADM</title>
+  <link rel="stylesheet" href="/style.css">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(ellipse at top, rgba(255,48,59,.13), transparent 55%),
+        #080808;
+      color: #f5f5f5;
+    }
+
+    .container {
+      width: min(100% - 24px, 1000px);
+      margin: auto;
+      padding: 18px 0 45px;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 15px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 14px;
+    }
+
+    .brand { font-size: 17px; font-weight: 900; }
+    .brand span:first-child { color: #ff303b; }
+    .brand span:nth-child(2) { color: #19e68c; }
+
+    button, a { cursor: pointer; }
+
+    .logout, .back-button {
+      padding: 10px 13px;
+      color: white;
+      background: #202020;
+      border: 1px solid #383838;
+      border-radius: 9px;
+      font-size: 10px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .welcome { padding: 10px 5px; }
+    .eyebrow {
+      color: #ff454f;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin: 0 0 9px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 6vw, 42px);
+      margin: 0 0 10px;
+    }
+
+    h1 span { color: #ff303b; }
+
+    .welcome-description {
+      color: #999;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .panel-card {
+      padding: 22px;
+      background: linear-gradient(145deg, #151515, #0e0e0e);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      min-width: 0;
+    }
+
+    .release-section {
+      border-color: rgba(255,48,59,.25);
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(255,48,59,.13), transparent 48%),
+        #111;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    h2 { font-size: 19px; margin: 0 0 8px; }
+
+    .muted {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin: 17px 0;
+    }
+
+    .field label {
+      color: #ddd;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .field input, .field textarea {
+      width: 100%;
+      padding: 13px;
+      color: white;
+      background: #090909;
+      border: 1px solid #333;
+      border-radius: 9px;
+      outline: none;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .field input:focus, .field textarea:focus {
+      border-color: #ff303b;
+    }
+
+    .field textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .upload-area {
+      display: block;
+      padding: 20px;
+      text-align: center;
+      background: #090909;
+      border: 1px dashed #555;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .upload-area strong {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+    }
+
+    .upload-area small {
+      color: #999;
+      font-size: 11px;
+    }
+
+    .upload-area input {
+      margin-top: 12px;
+      font-size: 11px;
+    }
+
+    .release-info {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 15px 0;
+    }
+
+    .info-chip {
+      padding: 8px 10px;
+      color: #aaa;
+      background: #090909;
+      border: 1px solid #292929;
+      border-radius: 8px;
+      font-size: 10px;
+    }
+
+    .info-chip strong { color: white; }
+
+    #publish-button, .primary-button {
+      width: 100%;
+      padding: 15px;
+      color: white;
+      background: linear-gradient(100deg, #ff303b, #c71928);
+      border: 0;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    #publish-button:disabled { opacity: .6; }
+
+    #release-message, #release-compatibility-status {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    #releases-list {
+      display: grid;
+      gap: 12px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .release-item {
+      padding: 16px;
+      background: #090909;
+      border: 1px solid #303030;
+      border-radius: 12px;
+    }
+
+    .release-item h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .release-item p {
+      color: #aaa;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .release-status {
+      display: inline-block;
+      padding: 6px 9px;
+      border-radius: 7px;
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    .release-status.published {
+      color: #19e68c;
+      background: rgba(25,230,140,.08);
+    }
+
+    .release-status.draft {
+      color: #ffc857;
+      background: rgba(255,200,87,.08);
+    }
+
+    .publish-release-button {
+      width: 100%;
+      padding: 12px;
+      color: white;
+      background: #202020;
+      border: 1px solid #444;
+      border-radius: 9px;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .empty-state {
+      padding: 20px;
+      color: #999;
+      background: #090909;
+      border: 1px dashed #333;
+      border-radius: 10px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .footer {
+      color: #555;
+      text-align: center;
+      font-size: 10px;
+    }
+
+    @media (max-width: 550px) {
+      .panel-card { padding: 17px; }
+      .section-heading { align-items: flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <section id="dashboard-screen" class="dashboard">
+
+      <header class="topbar">
+        <div class="brand">
+          <span>Z</span><span>B</span> ZuckerBotADM
+        </div>
+
+        <a href="/admin.html" class="back-button">VOLTAR AO PAINEL</a>
+      </header>
+
+      <div class="welcome">
+        <p class="eyebrow">GERENCIAMENTO DO SISTEMA</p>
+        <h1>Central de <span>atualizações.</span></h1>
+        <p class="welcome-description">
+          Publique versões, acompanhe o histórico e gerencie as atualizações do ZuckerBots.
+        </p>
+      </div>
+
+      <section class="panel-card release-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">NOVA PUBLICAÇÃO</p>
+            <h2>Enviar atualização</h2>
+            <p class="muted">Prepare um novo pacote para os bots.</p>
+          </div>
+          <div style="font-size:30px">📦</div>
+        </div>
+
+        <form id="release-form">
+          <div class="field">
+            <label for="release-version">VERSÃO DO SISTEMA</label>
+            <input
+              id="release-version"
+              type="text"
+              placeholder="Ex.: 1.1.0"
+              pattern="[0-9]+\.[0-9]+\.[0-9]+"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label for="release-file">PACOTE OFICIAL (.ZIP)</label>
+            <div class="upload-area" id="release-upload-area">
+              <strong id="release-file-label">Selecionar pacote ZIP</strong>
+              <small id="release-file-hint">Toque para escolher o arquivo · até 50 MB</small>
+              <input
+                id="release-file"
+                type="file"
+                accept=".zip,application/zip"
+                required
+              >
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="release-notes">NOVIDADES DESTA VERSÃO</label>
+            <textarea
+              id="release-notes"
+              placeholder="Descreva as melhorias e correções..."
+            ></textarea>
+          </div>
+
+          <div class="release-info">
+            <span class="info-chip">Formato: <strong>ZIP</strong></span>
+            <span class="info-chip">Limite: <strong>50 MB</strong></span>
+            <span class="info-chip">Integridade: <strong>SHA-256</strong></span>
+          </div>
+
+          <p id="release-message"></p>
+          <p id="release-compatibility-status" role="status">
+            Verificando conexão entre o painel e os agentes...
+          </p>
+
+          <button id="publish-button" type="submit">
+            PREPARAR NOVA PUBLICAÇÃO ↗
+          </button>
+        </form>
+      </section>
+
+      <section class="panel-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">HISTÓRICO</p>
+            <h2>Versões cadastradas</h2>
+            <p class="muted">Consulte as versões publicadas e os rascunhos.</p>
+          </div>
+
+          <button id="refresh-releases" type="button" class="logout">
+            ↻ ATUALIZAR
+          </button>
+        </div>
+
+        <p id="releases-message" class="muted">Carregando versões...</p>
+        <div id="releases-list"></div>
+      </section>
+
+      <p class="footer">ZuckerBotADM · CENTRAL DE ATUALIZAÇÕES</p>
+    </section>
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+                                                               </html>
+                                                               
