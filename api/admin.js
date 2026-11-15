@@ -1102,45 +1102,38 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (action === "set_validity" && req.method === "POST") {
+  
+  // HISTÓRICO DE VALIDADE
+  if (action === "list_validity_history" && req.method === "GET") {
     try {
-      const { userId } = req.body || {};
-      const days = Number(req.body?.days);
-      if (typeof userId !== "string" || !userId.trim() || userId.length > 100) {
-        return res.status(400).json({ error: "Conta inválida." });
-      }
-      if (!Number.isInteger(days) || days < 1 || days > 3650) {
-        return res.status(400).json({ error: "Informe uma quantidade entre 1 e 3650 dias." });
-      }
+      const response = await supabaseRequest(
+        "/rest/v1/account_validity_history?select=*&order=created_at.desc&limit=2000"
+      );
 
-      const access = await getAccountAccessById(userId);
-      const now = Date.now();
-      const currentTime = access.validityUntil ? new Date(access.validityUntil).getTime() : 0;
-      const baseTime = Number.isFinite(currentTime) && currentTime > now ? currentTime : now;
-      const validUntil = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
-      const renewalCount = access.validityRenewalCount + 1;
-      const updated = await updateAccountControl(userId, {
-        zucker_valid_until: validUntil,
-        zucker_validity_type: "paid",
-        zucker_validity_updated_at: new Date(now).toISOString(),
-        zucker_validity_last_renewed_at: new Date(now).toISOString(),
-        zucker_validity_renewal_count: renewalCount
-      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("[VALIDITY HISTORY]", result);
+
+        return res.status(502).json({
+          error: "Não foi possível carregar o histórico de validade."
+        });
+      }
 
       return res.status(200).json({
         success: true,
-        valid_until: updated.validityUntil,
-        days_added: days,
-        validity_type: "paid",
-        renewal_count: updated.validityRenewalCount
+        history: result
       });
+
     } catch (error) {
-      console.error("[SET USER VALIDITY]", error);
-      return res.status(error.status === 404 ? 404 : 502).json({
-        error: "Não foi possível atualizar a validade da conta."
+      console.error("[VALIDITY HISTORY]", error);
+
+      return res.status(500).json({
+        error: "Erro ao consultar o histórico de validade."
       });
     }
   }
+
 
   // ==========================================
   // EXCLUIR CONTA DEFINITIVAMENTE
