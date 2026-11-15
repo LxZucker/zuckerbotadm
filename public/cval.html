@@ -1,0 +1,231 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <title>Histórico de Validade | ZuckerBotADM</title>
+  <link rel="stylesheet" href="/style.css">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 0;
+      background:
+        radial-gradient(ellipse at top, rgba(255,40,50,.12), transparent 55%),
+        #080808;
+      color: #f5f5f5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      margin: auto;
+      padding: 16px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      margin-bottom: 28px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 14px;
+    }
+
+    .brand {
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .brand span:first-child { color: #ff303b; }
+    .brand span:nth-child(2) { color: #19e68c; }
+
+    .back-button, .refresh-button {
+      padding: 11px 13px;
+      color: white;
+      background: #202020;
+      border: 1px solid #383838;
+      border-radius: 9px;
+      font-size: 10px;
+      font-weight: 900;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .welcome { margin-bottom: 22px; }
+
+    .eyebrow {
+      color: #ff454f;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    h1 {
+      font-size: clamp(26px, 6vw, 40px);
+      margin: 8px 0;
+    }
+
+    h1 span { color: #ff303b; }
+
+    .description {
+      color: #999;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .panel {
+      padding: 18px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 15px;
+    }
+
+    .heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .search {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 14px;
+      color: white;
+      background: #090909;
+      border: 1px solid #333;
+      border-radius: 9px;
+      outline: none;
+      font-size: 13px;
+    }
+
+    #history-message {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .history-item {
+      padding: 15px;
+      background: #090909;
+      border: 1px solid #303030;
+      border-radius: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .history-item h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    .history-item p {
+      margin: 7px 0;
+      color: #aaa;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .event-type {
+      display: inline-block;
+      padding: 6px 9px;
+      margin-bottom: 9px;
+      color: #19e68c;
+      background: rgba(25,230,140,.09);
+      border-radius: 7px;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .footer {
+      padding: 20px 5px;
+      color: #555;
+      text-align: center;
+      font-size: 10px;
+    }
+
+    @media (max-width: 500px) {
+      .container { padding: 10px; }
+      .panel { padding: 13px; }
+      .topbar { padding: 11px; }
+      .brand { font-size: 13px; }
+      .back-button { font-size: 9px; }
+      .heading { align-items: flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+
+    <header class="topbar">
+      <div class="brand">
+        <span>Z</span><span>B</span> ZuckerBotADM
+      </div>
+
+      <a href="/admin.html" class="back-button">
+        ← VOLTAR
+      </a>
+    </header>
+
+    <section class="welcome">
+      <p class="eyebrow">CONTROLE DE CLIENTES</p>
+      <h1>Histórico de <span>validade.</span></h1>
+      <p class="description">
+        Consulte quando cada conta recebeu validade,
+        quando o período de teste começou e quando terminou.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="heading">
+        <div>
+          <p class="eyebrow">REGISTROS</p>
+          <h2>Movimentações de validade</h2>
+        </div>
+
+        <button id="refresh-history" class="refresh-button" type="button">
+          ↻ ATUALIZAR
+        </button>
+      </div>
+
+      <input
+        id="search-history"
+        class="search"
+        type="search"
+        placeholder="Pesquisar conta..."
+      >
+
+      <p id="history-message">Preparando histórico...</p>
+
+      <div id="history-list" class="history-list"></div>
+    </section>
+
+    <footer class="footer">
+      ZuckerBotADM · HISTÓRICO DE VALIDADE
+    </footer>
+
+  </main>
+
+  <script src="/cval.js"></script>
+</body>
+  </html>
+  
