@@ -61,20 +61,41 @@ if (loginForm) {
 }
 
 if (dashboardScreen) {
+
+if (dashboardScreen) {
   async function protectDashboard() {
+    let result;
+
     try {
-      const result = await api("auth");
-      if (!result.authenticated) {
-        window.location.href = "/";
-        return;
-      }
-      await Promise.all([loadReleases(), loadCoreFiles(), loadAccounts(), loadUpdateReports(), checkReleaseCompatibility()]);
-    } catch {
+      result = await api("auth");
+    } catch (error) {
+      console.error("[ADMIN AUTH]", error);
       window.location.href = "/";
+      return;
+    }
+
+    if (!result.authenticated) {
+      window.location.href = "/";
+      return;
+    }
+
+    try {
+      await Promise.all([
+        loadReleases(),
+        loadCoreFiles(),
+        loadAccounts(),
+        loadUpdateReports(),
+        checkReleaseCompatibility()
+      ]);
+    } catch (error) {
+      console.error("[ADMIN DASHBOARD]", error);
+      alert("Acesso autorizado, mas houve uma falha ao carregar os dados do painel. Confira o console.");
     }
   }
+
   protectDashboard();
 }
+
 
 const logoutButton = document.getElementById("logout-button");
 if (logoutButton) {
