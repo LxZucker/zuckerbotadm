@@ -3,42 +3,31 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta name="theme-color" content="#080808">
   <title>Contas | ZuckerBotADM</title>
   <link rel="stylesheet" href="/style.css">
 
   <style>
-    :root {
-      --bg: #080808;
-      --card: #111;
-      --red: #ff303b;
-      --green: #19e68c;
-      --text: #f5f5f5;
-      --muted: #888;
-      --border: rgba(255,255,255,.08);
+    * {
+      box-sizing: border-box;
     }
-
-    * { box-sizing: border-box; }
 
     body {
       margin: 0;
+      min-width: 0;
       background:
-        radial-gradient(ellipse at 50% -20%, rgba(255,35,48,.13), transparent 55%),
-        var(--bg);
-      color: var(--text);
+        radial-gradient(ellipse at top, rgba(255,40,50,.12), transparent 55%),
+        #080808;
+      color: #f5f5f5;
+      overflow-x: hidden;
     }
 
-    .container {
-      width: min(100% - 28px, 1050px);
+    .accounts-container {
+      width: 100%;
+      max-width: 1000px;
       margin: auto;
-      padding: 20px 0 50px;
-    }
-
-    .topbar, .panel-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 15px;
+      padding: 16px;
     }
 
     .topbar {
@@ -46,58 +35,70 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 15px;
-      margin-bottom: 30px;
+      padding: 14px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 14px;
+      margin-bottom: 28px;
     }
 
     .brand {
+      font-size: 16px;
       font-weight: 900;
-      font-size: 17px;
+      white-space: nowrap;
     }
 
-    .brand span:first-child { color: var(--red); }
-    .brand span:nth-child(2) { color: var(--green); }
+    .brand span:first-child { color: #ff303b; }
+    .brand span:nth-child(2) { color: #19e68c; }
 
-    button, a { cursor: pointer; }
-
-    .logout {
-      display: inline-block;
+    .back-button {
+      padding: 10px 12px;
       background: #202020;
-      border: 1px solid var(--border);
-      color: white;
+      border: 1px solid #333;
       border-radius: 9px;
-      padding: 11px 14px;
-      font-size: 11px;
+      color: white;
+      font-size: 10px;
       font-weight: 800;
       text-decoration: none;
+      text-align: center;
     }
 
-    .welcome { margin-bottom: 24px; }
+    .welcome {
+      margin-bottom: 22px;
+    }
 
     .eyebrow {
-      color: var(--red);
+      color: #ff454f;
       font-size: 10px;
       font-weight: 900;
       letter-spacing: 2px;
-      margin-bottom: 9px;
+      margin: 0 0 9px;
     }
 
     h1 {
-      font-size: clamp(28px, 6vw, 42px);
+      font-size: clamp(26px, 6vw, 40px);
+      line-height: 1.15;
       margin: 0 0 10px;
     }
 
-    h1 span { color: var(--red); }
+    h1 span {
+      color: #ff303b;
+    }
 
-    .welcome > p:last-child {
-      color: var(--muted);
+    .welcome-description {
+      color: #999;
       font-size: 13px;
       line-height: 1.6;
+      margin: 0;
     }
 
     .panel-card {
-      padding: 20px;
-      margin-bottom: 18px;
+      width: 100%;
+      min-width: 0;
+      padding: 18px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 15px;
     }
 
     .section-heading {
@@ -105,23 +106,36 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 17px;
+      margin-bottom: 16px;
     }
 
     h2 {
-      font-size: 18px;
+      font-size: 17px;
       margin: 0;
+    }
+
+    .refresh-button {
+      flex-shrink: 0;
+      padding: 10px 12px;
+      color: white;
+      background: #202020;
+      border: 1px solid #383838;
+      border-radius: 9px;
+      font-size: 10px;
+      font-weight: 900;
     }
 
     .search-box {
       display: flex;
       align-items: center;
       gap: 10px;
+      width: 100%;
+      min-width: 0;
+      padding: 0 12px;
+      margin-bottom: 15px;
       background: #090909;
-      border: 1px solid #303030;
+      border: 1px solid #333;
       border-radius: 10px;
-      padding: 0 13px;
-      margin: 15px 0;
     }
 
     .search-box input {
@@ -130,46 +144,60 @@
       padding: 14px 0;
       color: white;
       background: transparent;
-      border: none;
+      border: 0;
       outline: none;
-      font-size: 13px;
+      font-size: 12px;
+    }
+
+    #accounts-message {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
     }
 
     .account-list {
       display: grid;
+      grid-template-columns: 1fr;
       gap: 13px;
-      max-height: 650px;
+      width: 100%;
+      max-height: 75vh;
       overflow-y: auto;
-      padding-right: 4px;
+      overflow-x: hidden;
+      padding: 2px 3px 5px 0;
     }
 
     .account-item {
-      background: rgba(0,0,0,.35);
-      border: 1px solid var(--border);
+      width: 100%;
+      min-width: 0;
+      padding: 16px;
+      background: #090909;
+      border: 1px solid #303030;
       border-radius: 12px;
-      padding: 17px;
       overflow-wrap: anywhere;
     }
 
     .account-item h3 {
-      margin: 0 0 10px;
+      margin: 0 0 12px;
       font-size: 16px;
+      overflow-wrap: anywhere;
     }
 
     .account-item p {
+      margin: 8px 0;
       color: #aaa;
       font-size: 12px;
       line-height: 1.6;
-      margin: 7px 0;
+      overflow-wrap: anywhere;
     }
 
     .account-state {
       display: inline-block;
-      margin: 5px 0 8px;
+      margin: 4px 0 8px;
       padding: 7px 10px;
       border-radius: 7px;
-      background: rgba(25,230,140,.08);
-      color: var(--green);
+      background: rgba(25,230,140,.09);
+      color: #19e68c;
       font-size: 10px;
       font-weight: 900;
     }
@@ -177,57 +205,128 @@
     .account-state.expired,
     .account-state.suspended {
       color: #ff747d;
-      background: rgba(255,70,80,.08);
+      background: rgba(255,70,80,.10);
     }
 
     .account-tools {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 14px;
     }
 
     .account-tools input {
+      width: 100%;
       min-width: 0;
-      padding: 11px;
+      padding: 12px;
       color: white;
-      background: #111;
-      border: 1px solid #444;
+      background: #151515;
+      border: 1px solid #393939;
       border-radius: 8px;
+      font-size: 13px;
     }
 
-    .account-tools button {
-      padding: 10px 12px;
+    .account-item button {
+      min-height: 42px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 900;
     }
 
-    #accounts-message {
-      color: var(--muted);
-      font-size: 12px;
+    .account-item button:disabled,
+    .refresh-button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
     }
 
-    @media (max-width: 500px) {
-      .container { width: min(100% - 20px, 1050px); }
-      .panel-card { padding: 16px; }
-      .account-tools { grid-template-columns: 1fr; }
-      .section-heading { align-items: flex-start; }
+    .account-footer {
+      padding: 20px 5px 8px;
+      color: #555;
+      text-align: center;
+      font-size: 10px;
+    }
+
+    @media (max-width: 600px) {
+      .accounts-container {
+        padding: 10px;
+      }
+
+      .topbar {
+        padding: 11px;
+        margin-bottom: 23px;
+      }
+
+      .brand {
+        font-size: 14px;
+      }
+
+      .back-button {
+        padding: 10px;
+        font-size: 9px;
+      }
+
+      .panel-card {
+        padding: 13px;
+      }
+
+      .section-heading {
+        align-items: center;
+      }
+
+      .account-item {
+        padding: 13px;
+      }
+
+      .account-tools {
+        grid-template-columns: 1fr;
+      }
+
+      .account-tools button {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 350px) {
+      .brand {
+        font-size: 12px;
+      }
+
+      .back-button {
+        font-size: 8px;
+        padding: 9px 7px;
+      }
+
+      .section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .refresh-button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 
 <body>
-  <main class="container">
+  <main class="accounts-container">
 
     <header class="topbar">
       <div class="brand">
         <span>Z</span><span>B</span> ZuckerBotADM
       </div>
-      <a class="logout" href="/admin.html">← VOLTAR AO PAINEL</a>
+
+      <a class="back-button" href="/admin.html">
+        ← VOLTAR AO PAINEL
+      </a>
     </header>
 
     <section class="welcome">
       <p class="eyebrow">GERENCIAMENTO DE CLIENTES</p>
       <h1>Contas <span>cadastradas.</span></h1>
-      <p>Consulte, pesquise e gerencie as contas dos usuários do ZuckerBots.</p>
+      <p class="welcome-description">
+        Consulte, pesquise e gerencie as contas dos usuários do ZuckerBots.
+      </p>
     </section>
 
     <section class="panel-card">
@@ -237,7 +336,11 @@
           <h2>Lista de contas</h2>
         </div>
 
-        <button id="refresh-accounts" class="logout" type="button">
+        <button
+          id="refresh-accounts"
+          class="refresh-button"
+          type="button"
+        >
           ↻ ATUALIZAR
         </button>
       </div>
@@ -247,21 +350,21 @@
         <input
           id="search-accounts"
           type="search"
-          placeholder="Pesquisar por usuário, login ou ID..."
+          placeholder="Pesquisar usuário, login ou ID..."
         >
       </div>
 
       <p id="accounts-message">Preparando lista de contas...</p>
+
       <div id="accounts-list" class="account-list"></div>
     </section>
 
-    <p style="text-align:center;color:#555;font-size:10px;padding:10px">
+    <footer class="account-footer">
       ZuckerBotADM · GERENCIAMENTO DE CONTAS
-    </p>
+    </footer>
 
   </main>
 
   <script src="/contas.js"></script>
 </body>
-        </html>
-        
+</html>
