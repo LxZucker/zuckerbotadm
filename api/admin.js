@@ -1086,12 +1086,15 @@ module.exports = async (req, res) => {
 
       const updated = await response.json().catch(() => []);
 
-      if (!response.ok) {
+            if (!response.ok) {
         console.error("[FORCE UNLINK]", updated);
         return res.status(502).json({
-          error: "Não foi possível revogar o dispositivo."
+          error: "Falha no Supabase ao revogar dispositivo.",
+          details: updated.message || updated.error || updated.details || JSON.stringify(updated),
+          code: updated.code || null,
+          hint: updated.hint || null
         });
-      }
+            }
 
       if (!Array.isArray(updated) || !updated.length) {
         return res.status(404).json({
