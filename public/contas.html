@@ -1,0 +1,267 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>Contas | ZuckerBotADM</title>
+  <link rel="stylesheet" href="/style.css">
+
+  <style>
+    :root {
+      --bg: #080808;
+      --card: #111;
+      --red: #ff303b;
+      --green: #19e68c;
+      --text: #f5f5f5;
+      --muted: #888;
+      --border: rgba(255,255,255,.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 50% -20%, rgba(255,35,48,.13), transparent 55%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      width: min(100% - 28px, 1050px);
+      margin: auto;
+      padding: 20px 0 50px;
+    }
+
+    .topbar, .panel-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 15px;
+      margin-bottom: 30px;
+    }
+
+    .brand {
+      font-weight: 900;
+      font-size: 17px;
+    }
+
+    .brand span:first-child { color: var(--red); }
+    .brand span:nth-child(2) { color: var(--green); }
+
+    button, a { cursor: pointer; }
+
+    .logout {
+      display: inline-block;
+      background: #202020;
+      border: 1px solid var(--border);
+      color: white;
+      border-radius: 9px;
+      padding: 11px 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .welcome { margin-bottom: 24px; }
+
+    .eyebrow {
+      color: var(--red);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-bottom: 9px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 6vw, 42px);
+      margin: 0 0 10px;
+    }
+
+    h1 span { color: var(--red); }
+
+    .welcome > p:last-child {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .panel-card {
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 17px;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #090909;
+      border: 1px solid #303030;
+      border-radius: 10px;
+      padding: 0 13px;
+      margin: 15px 0;
+    }
+
+    .search-box input {
+      width: 100%;
+      min-width: 0;
+      padding: 14px 0;
+      color: white;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 13px;
+    }
+
+    .account-list {
+      display: grid;
+      gap: 13px;
+      max-height: 650px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .account-item {
+      background: rgba(0,0,0,.35);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 17px;
+      overflow-wrap: anywhere;
+    }
+
+    .account-item h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .account-item p {
+      color: #aaa;
+      font-size: 12px;
+      line-height: 1.6;
+      margin: 7px 0;
+    }
+
+    .account-state {
+      display: inline-block;
+      margin: 5px 0 8px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      background: rgba(25,230,140,.08);
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .account-state.expired,
+    .account-state.suspended {
+      color: #ff747d;
+      background: rgba(255,70,80,.08);
+    }
+
+    .account-tools {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .account-tools input {
+      min-width: 0;
+      padding: 11px;
+      color: white;
+      background: #111;
+      border: 1px solid #444;
+      border-radius: 8px;
+    }
+
+    .account-tools button {
+      padding: 10px 12px;
+    }
+
+    #accounts-message {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 500px) {
+      .container { width: min(100% - 20px, 1050px); }
+      .panel-card { padding: 16px; }
+      .account-tools { grid-template-columns: 1fr; }
+      .section-heading { align-items: flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+
+    <header class="topbar">
+      <div class="brand">
+        <span>Z</span><span>B</span> ZuckerBotADM
+      </div>
+      <a class="logout" href="/admin.html">← VOLTAR AO PAINEL</a>
+    </header>
+
+    <section class="welcome">
+      <p class="eyebrow">GERENCIAMENTO DE CLIENTES</p>
+      <h1>Contas <span>cadastradas.</span></h1>
+      <p>Consulte, pesquise e gerencie as contas dos usuários do ZuckerBots.</p>
+    </section>
+
+    <section class="panel-card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">USUÁRIOS</p>
+          <h2>Lista de contas</h2>
+        </div>
+
+        <button id="refresh-accounts" class="logout" type="button">
+          ↻ ATUALIZAR
+        </button>
+      </div>
+
+      <div class="search-box">
+        <span>🔎</span>
+        <input
+          id="search-accounts"
+          type="search"
+          placeholder="Pesquisar por usuário, login ou ID..."
+        >
+      </div>
+
+      <p id="accounts-message">Preparando lista de contas...</p>
+      <div id="accounts-list" class="account-list"></div>
+    </section>
+
+    <p style="text-align:center;color:#555;font-size:10px;padding:10px">
+      ZuckerBotADM · GERENCIAMENTO DE CONTAS
+    </p>
+
+  </main>
+
+  <script src="/contas.js"></script>
+</body>
+        </html>
+        
