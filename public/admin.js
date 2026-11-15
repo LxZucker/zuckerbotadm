@@ -1,3 +1,4 @@
+
 async function api(action, method = "GET", data = {}) {
   const options = {
     method,
@@ -85,12 +86,7 @@ if (dashboardScreen) {
     }
 
     try {
-      await Promise.all([
-        loadReleases(),
-        loadCoreFiles(),
-        loadUpdateReports(),
-        checkReleaseCompatibility()
-      ]);
+      await loadUpdateReports();
     } catch (error) {
       console.error("[ADMIN DASHBOARD]", error);
       alert("Erro ao carregar o painel: " + error.message);
@@ -129,9 +125,14 @@ async function calculateSHA256(file) {
 // ATUALIZAÇÕES / VERSÕES
 // ==========================================
 
-const draftReleasesContainer = document.getElementById("draft-releases-list");
-const publishedReleasesContainer = document.getElementById("published-releases-list");
-const releasesMessage = document.getElementById("releases-message");
+const draftReleasesContainer =
+  document.getElementById("draft-releases-list");
+
+const publishedReleasesContainer =
+  document.getElementById("published-releases-list");
+
+const releasesMessage =
+  document.getElementById("releases-message");
 
 function formatDate(value) {
   if (!value) return "Data não informada";
@@ -149,6 +150,10 @@ function makeEmptyState(message) {
   empty.textContent = message;
   return empty;
 }
+
+// ==========================================
+// CARREGAR VERSÕES
+// ==========================================
 
 async function loadReleases() {
   if (!draftReleasesContainer || !publishedReleasesContainer) return;
@@ -194,7 +199,9 @@ async function loadReleases() {
 
     function createReleaseCard(release, isPublished) {
       const card = document.createElement("article");
-      card.className = `release-item ${isPublished ? "is-published" : "is-draft"}`;
+
+      card.className =
+        `release-item ${isPublished ? "is-published" : "is-draft"}`;
 
       const main = document.createElement("div");
       main.className = "release-main";
@@ -207,8 +214,12 @@ async function loadReleases() {
       title.textContent = `Versão ${release.version}`;
 
       const status = document.createElement("span");
-      status.className = `release-status ${isPublished ? "published" : "draft"}`;
-      status.textContent = isPublished ? "✓ PUBLICADA" : "● RASCUNHO";
+
+      status.className =
+        `release-status ${isPublished ? "published" : "draft"}`;
+
+      status.textContent =
+        isPublished ? "✓ PUBLICADA" : "● RASCUNHO";
 
       titleRow.append(title, status);
 
@@ -218,8 +229,10 @@ async function loadReleases() {
 
       const notes = document.createElement("p");
       notes.className = "release-notes";
+
       notes.textContent =
-        release.release_notes || "Sem descrição cadastrada para esta versão.";
+        release.release_notes ||
+        "Sem descrição cadastrada para esta versão.";
 
       main.append(titleRow, date, notes);
       card.appendChild(main);
@@ -229,6 +242,7 @@ async function loadReleases() {
         actions.className = "release-actions";
 
         const editButton = document.createElement("button");
+
         editButton.type = "button";
         editButton.className = "edit-release-button";
         editButton.textContent = "EDITAR RASCUNHO ✎";
@@ -240,6 +254,7 @@ async function loadReleases() {
         });
 
         const publishButton = document.createElement("button");
+
         publishButton.type = "button";
         publishButton.className = "publish-release-button";
         publishButton.textContent = "PUBLICAR VERSÃO ↗";
@@ -262,15 +277,73 @@ async function loadReleases() {
             );
 
             alert(publishedResult.message || "Versão publicada!");
+
             await loadReleases();
+
           } catch (error) {
             alert(error.message);
+
             publishButton.disabled = false;
             publishButton.textContent = "PUBLICAR VERSÃO ↗";
           }
         });
 
-        actions.append(editButton, publishButton);
+        const deleteButton = document.createElement("button");
+
+        deleteButton.type = "button";
+        deleteButton.className = "delete-release-button";
+        deleteButton.textContent = "APAGAR RASCUNHO ✕";
+
+        deleteButton.style.cssText = `
+          width: 100%;
+          padding: 12px;
+          margin-top: 8px;
+          color: #ff747d;
+          background: #202020;
+          border: 1px solid #ff4545;
+          border-radius: 9px;
+          font-size: 10px;
+          font-weight: 900;
+        `;
+
+        deleteButton.addEventListener("click", async () => {
+          const confirmed = confirm(
+            `Deseja realmente apagar o rascunho da versão ${release.version}?\n\nEssa ação não poderá ser desfeita.`
+          );
+
+          if (!confirmed) return;
+
+          deleteButton.disabled = true;
+          deleteButton.textContent = "APAGANDO...";
+
+          try {
+            const deleteResult = await api(
+              "delete_release",
+              "POST",
+              { id: String(release.id) }
+            );
+
+            alert(
+              deleteResult.message ||
+              `Rascunho ${release.version} apagado com sucesso!`
+            );
+
+            await loadReleases();
+
+          } catch (error) {
+            alert("Erro ao apagar rascunho: " + error.message);
+
+            deleteButton.disabled = false;
+            deleteButton.textContent = "APAGAR RASCUNHO ✕";
+          }
+        });
+
+        actions.append(
+          editButton,
+          publishButton,
+          deleteButton
+        );
+
         card.appendChild(actions);
       }
 
@@ -307,12 +380,13 @@ async function loadReleases() {
   }
 }
 
-const refreshReleasesButton = document.getElementById("refresh-releases");
+const refreshReleasesButton =
+  document.getElementById("refresh-releases");
 
 if (refreshReleasesButton) {
   refreshReleasesButton.addEventListener("click", loadReleases);
-}
-
+                                }
+          
 async function checkReleaseCompatibility() {
   const status = document.getElementById("release-compatibility-status");
   if (!status) return;
@@ -338,6 +412,18 @@ async function checkReleaseCompatibility() {
     status.textContent =
       `Não foi possível validar o Supabase: ${error.message}`;
   }
+}
+
+// ==========================================
+// INICIALIZAÇÃO DA PÁGINA DE ATUALIZAÇÕES
+// ==========================================
+
+if (
+  draftReleasesContainer &&
+  publishedReleasesContainer
+) {
+  loadReleases();
+  checkReleaseCompatibility();
 }
 
 // ==========================================
@@ -469,8 +555,7 @@ if (releaseForm) {
         'PREPARAR NOVA PUBLICAÇÃO <span>↗</span>';
     }
   });
-  }
-
+}
 
 // ==========================================
 // CONTAS E RELATÓRIOS DOS AGENTES
