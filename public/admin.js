@@ -79,12 +79,11 @@ if (dashboardScreen) {
 
     try {
       await Promise.all([
-        loadReleases(),
-        loadCoreFiles(),
-        loadAccounts(),
-        loadUpdateReports(),
-        checkReleaseCompatibility()
-      ]);
+  loadReleases(),
+  loadCoreFiles(),
+  loadUpdateReports(),
+  checkReleaseCompatibility()
+]);
     } catch (error) {
   console.error("[ADMIN DASHBOARD]", error);
   alert("Erro ao carregar o painel: " + error.message);
