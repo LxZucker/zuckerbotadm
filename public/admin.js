@@ -489,74 +489,8 @@ if (coreFileForm) {
   });
                      }
       
-       return;
-    }
-
-    if (!confirm(`Suspender esta conta por ${minutes} minutos?`)) return;
-
+       
     suspendButton.disabled = true;
-
-    try {
-      await api("suspend_user", "POST", {
-  userId: device.user_id,
-  minutes,
-  reason
-});
-
-      alert("Conta suspensa com sucesso!");
-      await loadDevices();
-    } catch (error) {
-      alert("Erro ao suspender: " + error.message);
-      suspendButton.disabled = false;
-    }
-  });
-
-  const releaseButton = document.createElement("button");
-  releaseButton.type = "button";
-  releaseButton.textContent = "LIBERAR CONTA";
-  releaseButton.className = "logout";
-  releaseButton.style.cssText =
-    "width:100%;border-color:#19e68c;color:#19e68c;";
-
-  releaseButton.addEventListener("click", async () => {
-    if (!confirm("Deseja liberar esta conta agora?")) return;
-
-    releaseButton.disabled = true;
-
-    try {
-      await api("unsuspend_user", "POST", {
-        userId: device.user_id
-      });
-
-      alert("Conta liberada com sucesso!");
-      await loadDevices();
-    } catch (error) {
-      alert("Erro ao liberar: " + error.message);
-      releaseButton.disabled = false;
-    }
-  });
-
-  const forceUnlinkButton = document.createElement("button");
-  forceUnlinkButton.type = "button";
-  forceUnlinkButton.textContent = "FORÇAR DESVINCULAÇÃO";
-  forceUnlinkButton.className = "logout";
-  forceUnlinkButton.style.cssText =
-    "width:100%;margin:10px 0;border-color:#ff747d;color:#ff747d;";
-
-  forceUnlinkButton.addEventListener("click", async () => {
-    if (!confirm(
-      `Deseja realmente desvincular o dispositivo da conta ${device.account_name || device.user_id}?\n\nA autorização antiga será revogada, mesmo que o bot esteja offline.`
-    )) return;
-
-    forceUnlinkButton.disabled = true;
-    forceUnlinkButton.textContent = "DESVINCULANDO...";
-
-    try {
-      await api("force_unlink_device", "POST", {
-        deviceId: device.id,
-        userId: device.user_id
-      });
-
 
 // ==========================================
 // CONTAS E RELATÓRIOS DOS AGENTES
