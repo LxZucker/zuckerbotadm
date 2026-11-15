@@ -86,9 +86,9 @@ if (dashboardScreen) {
         checkReleaseCompatibility()
       ]);
     } catch (error) {
-      console.error("[ADMIN DASHBOARD]", error);
-      alert("Acesso autorizado, mas houve uma falha ao carregar os dados do painel. Confira o console.");
-    }
+  console.error("[ADMIN DASHBOARD]", error);
+  alert("Erro ao carregar o painel: " + error.message);
+}
   }
 
   protectDashboard();
