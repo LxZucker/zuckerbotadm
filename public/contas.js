@@ -215,16 +215,29 @@ const devices = Array.isArray(devicesResult.devices)
       const created = document.createElement("p");
       created.textContent =
         `Cadastro: ${formatDate(account.created_at)}`;
+// INFORMAÇÕES DO BOT
+const device = devicesByUser.get(account.user_id);
 
+const whatsappNumber = document.createElement("p");
+whatsappNumber.textContent = device?.whatsapp_number
+  ? `Número do bot: ${device.whatsapp_number}`
+  : "Número do bot: não registrado";
+
+const lastOnline = document.createElement("p");
+lastOnline.textContent = device?.last_seen
+  ? `Última vez online: ${formatDate(device.last_seen)}`
+  : "Última vez online: sem registro";
+      
       card.append(
-        title,
-        identity,
-        email,
-        status,
-        validity,
-        created
-      );
-
+  title,
+  identity,
+  email,
+  status,
+  validity,
+  created,
+  whatsappNumber,
+  lastOnline
+);
       // RENOVAÇÃO DE VALIDADE
       const renewalInput = document.createElement("input");
       renewalInput.type = "number";
