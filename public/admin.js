@@ -214,14 +214,165 @@ async function loadReleases() {
     });
   } catch (error) {
     releasesContainer.innerHTML = "";
-    releasesContainer.appendChild(makeEmptyState("Não foi possível carregar o histórico."));
-    if (releasesMessage) releasesMessage.textContent = error.message;
+
+
+const draftReleasesContainer = document.getElementById("draft-releases-list");
+const publishedReleasesContainer = document.getElementById("published-releases-list");
+const releasesMessage = document.getElementById("releases-message");
+
+function formatDate(value) {
+  if (!value) return "Data não informada";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Data não informada"
+    : date.toLocaleString("pt-BR");
+}
+
+function makeEmptyState(message) {
+  const empty = document.createElement("div");
+  empty.className = "empty-state";
+  empty.textContent = message;
+  return empty;
+}
+
+async function loadReleases() {
+  if (!draftReleasesContainer || !publishedReleasesContainer) return;
+
+  draftReleasesContainer.innerHTML = "";
+  publishedReleasesContainer.innerHTML = "";
+
+  if (releasesMessage) {
+    releasesMessage.textContent = "Carregando versões...";
+  }
+
+  try {
+    const result = await api("list_releases");
+    const releases = Array.isArray(result.releases)
+      ? result.releases
+      : [];
+
+    const drafts = releases.filter(release => release.status !== "published");
+    const published = releases.filter(release => release.status === "published");
+
+    if (releasesMessage) {
+      releasesMessage.textContent =
+        `${drafts.length} rascunho(s) · ${published.length} versão(ões) publicada(s).`;
+    }
+
+    if (!drafts.length) {
+      draftReleasesContainer.appendChild(
+        makeEmptyState("Nenhuma versão aguardando publicação.")
+      );
+    }
+
+    if (!published.length) {
+      publishedReleasesContainer.appendChild(
+        makeEmptyState("Nenhuma versão publicada ainda.")
+      );
+    }
+
+    function createReleaseCard(release, isPublished) {
+      const card = document.createElement("article");
+      card.className = `release-item ${isPublished ? "is-published" : "is-draft"}`;
+
+      const title = document.createElement("h3");
+      title.textContent = `Versão ${release.version}`;
+
+      const status = document.createElement("span");
+      status.className = `release-status ${isPublished ? "published" : "draft"}`;
+      status.textContent = isPublished ? "✓ PUBLICADA" : "● RASCUNHO";
+
+      const date = document.createElement("p");
+      date.textContent = `Criada em ${formatDate(release.created_at)}`;
+
+      const notes = document.createElement("p");
+      notes.textContent =
+        release.release_notes || "Sem descrição cadastrada para esta versão.";
+
+      card.append(title, status, date, notes);
+
+      if (!isPublished) {
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "edit-release-button";
+        editButton.textContent = "EDITAR RASCUNHO ✎";
+
+        editButton.addEventListener("click", () => {
+          alert("A edição dos rascunhos será ativada na próxima etapa.");
+        });
+
+        const publishButton = document.createElement("button");
+        publishButton.type = "button";
+        publishButton.className = "publish-release-button";
+        publishButton.style.marginTop = "8px";
+        publishButton.textContent = "PUBLICAR VERSÃO ↗";
+
+        publishButton.addEventListener("click", async () => {
+          if (!confirm(
+            `Deseja realmente publicar a versão ${release.version}? Essa ação disponibiliza a atualização aos bots que consultarem o painel.`
+          )) return;
+
+          publishButton.disabled = true;
+          publishButton.textContent = "PUBLICANDO...";
+
+          try {
+            const publishedResult = await api(
+              "publish_release",
+              "POST",
+              { id: String(release.id) }
+            );
+
+            alert(publishedResult.message || "Versão publicada!");
+            await loadReleases();
+          } catch (error) {
+            alert(error.message);
+            publishButton.disabled = false;
+            publishButton.textContent = "PUBLICAR VERSÃO ↗";
+          }
+        });
+
+        card.append(editButton, publishButton);
+      }
+
+      return card;
+    }
+
+    drafts.forEach(release => {
+      draftReleasesContainer.appendChild(
+        createReleaseCard(release, false)
+      );
+    });
+
+    published.forEach(release => {
+      publishedReleasesContainer.appendChild(
+        createReleaseCard(release, true)
+      );
+    });
+
+  } catch (error) {
+    draftReleasesContainer.innerHTML = "";
+    publishedReleasesContainer.innerHTML = "";
+
+    draftReleasesContainer.appendChild(
+      makeEmptyState("Não foi possível carregar os rascunhos.")
+    );
+
+    publishedReleasesContainer.appendChild(
+      makeEmptyState("Não foi possível carregar as versões cadastradas.")
+    );
+
+    if (releasesMessage) {
+      releasesMessage.textContent = error.message;
+    }
   }
 }
 
 const refreshReleasesButton = document.getElementById("refresh-releases");
-if (refreshReleasesButton) refreshReleasesButton.addEventListener("click", loadReleases);
 
+if (refreshReleasesButton) {
+  refreshReleasesButton.addEventListener("click", loadReleases);
+}
+    
 async function checkReleaseCompatibility() {
   const status = document.getElementById("release-compatibility-status");
   if (!status) return;
