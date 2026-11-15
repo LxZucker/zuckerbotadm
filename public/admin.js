@@ -90,7 +90,7 @@ if (dashboardScreen) {
 }
   }
 
-  protectDashboard();
+    queueMicrotask(protectDashboard);
 }
 
 
@@ -487,9 +487,7 @@ if (coreFileForm) {
     }
   });
                      }
-      
-       
-    suspendButton.disabled = true;
+  
 
 // ==========================================
 // CONTAS E RELATÓRIOS DOS AGENTES
