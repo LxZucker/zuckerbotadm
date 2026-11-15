@@ -1077,10 +1077,9 @@ module.exports = async (req, res) => {
             Prefer: "return=representation"
           },
           body: JSON.stringify({
-            status: "unlinked",
-            agent_token_hash: null,
-            whatsapp_connected: false
-          })
+  agent_token_hash: null,
+  whatsapp_connected: false
+})
         }
       );
 
