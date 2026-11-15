@@ -638,7 +638,7 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: "Tamanho do arquivo inválido." });
       }
 
-      await verifyReleaseObject(storagePath, size);
+      await verifyReleaseObject(version, storagePath, size);
 
       const result = await supabaseRequest("/rest/v1/bot_releases", {
         method: "POST",
