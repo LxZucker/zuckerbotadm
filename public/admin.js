@@ -751,10 +751,3 @@ async function loadUpdateReports() {
 if (refreshAccountsButton) refreshAccountsButton.addEventListener("click", loadAccounts);
 if (refreshUpdateReportsButton) refreshUpdateReportsButton.addEventListener("click", loadUpdateReports);
 
-if (refreshDevicesButton) {
-  refreshDevicesButton.addEventListener("click", loadDevices);
-}
-
-if (devicesList) {
-  loadDevices();
-    }
