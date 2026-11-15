@@ -734,6 +734,132 @@ module.exports = async (req, res) => {
   }
 
   // ==========================================
+  // EXCLUIR RASCUNHO DE ATUALIZAÇÃO
+  // ==========================================
+
+  if (action === "delete_release" && req.method === "POST") {
+    try {
+      const { id } = req.body || {};
+
+      if (
+        typeof id !== "string" ||
+        !id.trim() ||
+        id.length > 100
+      ) {
+        return res.status(400).json({
+          error: "Identificador do rascunho inválido."
+        });
+      }
+
+      // Busca o registro antes de permitir a exclusão.
+      const lookup = await supabaseRequest(
+        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status,storage_path`
+      );
+
+      const releases = await lookup.json().catch(() => []);
+
+      if (!lookup.ok || !Array.isArray(releases)) {
+        throw new Error("Não foi possível consultar o rascunho.");
+      }
+
+      if (!releases.length) {
+        return res.status(404).json({
+          error: "Rascunho não encontrado."
+        });
+      }
+
+      const release = releases[0];
+
+      // Impede apagar versões já publicadas.
+      if (release.status !== "draft") {
+        return res.status(403).json({
+          error: "Esta versão não é um rascunho e não pode ser excluída por esta função."
+        });
+      }
+
+      // Confere se o caminho pertence ao formato esperado.
+      if (
+        typeof release.storage_path !== "string" ||
+        !new RegExp(
+          `^releases/${release.version}/[a-f0-9-]{36}\\.zip$`,
+          "i"
+        ).test(release.storage_path)
+      ) {
+        return res.status(400).json({
+          error: "O caminho do arquivo deste rascunho é inválido."
+        });
+      }
+
+      // Apaga o ZIP do Storage.
+      const storageResponse = await supabaseRequest(
+        `/storage/v1/object/${BUCKET}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prefixes: [release.storage_path]
+          })
+        }
+      );
+
+      const storageResult = await storageResponse.json().catch(() => ({}));
+
+      if (!storageResponse.ok) {
+        console.error("[DELETE DRAFT STORAGE]", storageResult);
+
+        return res.status(502).json({
+          error: "Não foi possível apagar o arquivo ZIP do rascunho.",
+          details:
+            storageResult.message ||
+            storageResult.error ||
+            "Erro no Storage."
+        });
+      }
+
+      // Apaga o registro somente se ainda estiver como rascunho.
+      const deleteResponse = await supabaseRequest(
+        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&status=eq.draft`,
+        {
+          method: "DELETE",
+          headers: {
+            Prefer: "return=representation"
+          }
+        }
+      );
+
+      const deleted = await deleteResponse.json().catch(() => []);
+
+      if (!deleteResponse.ok) {
+        console.error("[DELETE DRAFT DATABASE]", deleted);
+
+        return res.status(502).json({
+          error: "O ZIP foi apagado, mas não foi possível excluir o registro do rascunho."
+        });
+      }
+
+      if (!Array.isArray(deleted) || !deleted.length) {
+        return res.status(409).json({
+          error: "O rascunho mudou de estado e não pôde ser excluído."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Rascunho da versão ${release.version} excluído com sucesso.`
+      });
+
+    } catch (error) {
+      console.error("[DELETE RELEASE]", error);
+
+      return res.status(500).json({
+        error: error.message || "Erro ao excluir o rascunho."
+      });
+    }
+  }
+  
+  // ==========================================
   // GERENCIADOR DO NÚCLEO
   // ==========================================
 
