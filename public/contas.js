@@ -36,7 +36,7 @@ async function protectAccountsPage() {
       return;
     }
 
-    loadAccounts();
+    await loadAccounts();
   } catch (error) {
     console.error("[CONTAS AUTH]", error);
     window.location.href = "/";
@@ -62,6 +62,7 @@ function formatDate(value) {
   return date.toLocaleString("pt-BR");
 }
 
+// TEMPO RESTANTE
 function remainingAccountTime(ms) {
   const totalMinutes = Math.max(
     0,
@@ -76,6 +77,39 @@ function remainingAccountTime(ms) {
   if (hours) return `${hours}h ${minutes}min`;
 
   return `${minutes}min`;
+}
+
+function remainingSuspensionTime(until) {
+  if (!until) return "Tempo não informado";
+
+  const remaining = new Date(until).getTime() - Date.now();
+
+  if (remaining <= 0) return "Suspensão encerrada";
+
+  return remainingAccountTime(remaining);
+}
+
+// ESTILO DOS BOTÕES
+function styleButton(button, color) {
+  if (color === "green") {
+    button.style.cssText =
+      "width:100%;min-height:42px;background:#102d20;border:1px solid #19e68c;color:#19e68c;border-radius:9px;padding:11px;";
+  } else if (color === "red") {
+    button.style.cssText =
+      "width:100%;min-height:42px;background:#301014;border:1px solid #ff4545;color:#ff747d;border-radius:9px;padding:11px;";
+  } else if (color === "orange") {
+    button.style.cssText =
+      "width:100%;min-height:42px;background:#30220e;border:1px solid #ffbf69;color:#ffbf69;border-radius:9px;padding:11px;";
+  }
+}
+
+// CRIAR BOTÃO
+function createButton(label, color) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  styleButton(button, color);
+  return button;
 }
 
 // PESQUISA
@@ -108,6 +142,7 @@ async function loadAccounts() {
 
   try {
     const result = await api("list_accounts");
+
     const accounts = Array.isArray(result.accounts)
       ? result.accounts
       : [];
@@ -126,14 +161,17 @@ async function loadAccounts() {
 
       // NOME
       const title = document.createElement("h3");
-      title.textContent = account.account_name || "Conta sem nome";
+      title.textContent =
+        account.account_name || "Conta sem nome";
 
-      // IDENTIFICAÇÃO
+      // ID
       const identity = document.createElement("p");
       identity.textContent = `ID: ${account.user_id}`;
 
+      // LOGIN
       const email = document.createElement("p");
-      email.textContent = `Login: ${account.email || "Não informado"}`;
+      email.textContent =
+        `Login: ${account.email || "Não informado"}`;
 
       // STATUS
       const status = document.createElement("span");
@@ -169,12 +207,21 @@ async function loadAccounts() {
           }`
         : "Sem data de vencimento cadastrada.";
 
-      // DATA DE CADASTRO
+      // CADASTRO
       const created = document.createElement("p");
       created.textContent =
         `Cadastro: ${formatDate(account.created_at)}`;
 
-      // RENOVAÇÃO
+      card.append(
+        title,
+        identity,
+        email,
+        status,
+        validity,
+        created
+      );
+
+      // RENOVAÇÃO DE VALIDADE
       const renewalInput = document.createElement("input");
       renewalInput.type = "number";
       renewalInput.min = "1";
@@ -186,10 +233,10 @@ async function loadAccounts() {
         "Dias de validade para adicionar"
       );
 
-      const renewButton = document.createElement("button");
-      renewButton.type = "button";
-      renewButton.className = "logout";
-      renewButton.textContent = "ADICIONAR TEMPO";
+      const renewButton = createButton(
+        "ADICIONAR TEMPO",
+        "green"
+      );
 
       renewButton.addEventListener("click", async () => {
         const days = Number(renewalInput.value);
@@ -221,41 +268,152 @@ async function loadAccounts() {
         }
       });
 
-      const tools = document.createElement("div");
-      tools.className = "account-tools";
-      tools.append(renewalInput, renewButton);
+      const renewalTools = document.createElement("div");
+      renewalTools.className = "account-tools";
+      renewalTools.append(renewalInput, renewButton);
 
-      card.append(
-        title,
-        identity,
-        email,
-        status,
-        validity,
-        created
-      );
+      card.appendChild(renewalTools);
 
-      // INFORMAÇÕES DE SUSPENSÃO
-      if (account.suspended_until) {
-        const suspended = document.createElement("p");
+      // ==================================
+      // SUSPENSÃO E LIBERAÇÃO DA CONTA
+      // ==================================
 
-        suspended.textContent =
-          `Suspensa até: ${formatDate(account.suspended_until)} · ${
-            account.suspension_reason || "Motivo não informado"
-          }`;
+      if (account.suspended) {
+        // INFORMAÇÕES DA SUSPENSÃO
+        const suspensionInfo = document.createElement("p");
 
-        card.appendChild(suspended);
+        suspensionInfo.style.cssText =
+          "color:#ff747d;margin-top:14px;";
+
+        suspensionInfo.textContent =
+          `SUSPENSA ATÉ: ${formatDate(account.suspended_until)} · ` +
+          `Restam ${remainingSuspensionTime(account.suspended_until)} · ` +
+          `Motivo: ${account.suspension_reason || "Não informado"}`;
+
+        card.appendChild(suspensionInfo);
+
+        // LIBERAR CONTA
+        const releaseButton = createButton(
+          "LIBERAR CONTA",
+          "green"
+        );
+
+        releaseButton.style.marginTop = "10px";
+
+        releaseButton.addEventListener("click", async () => {
+          if (!confirm(
+            `Deseja liberar a conta ${account.account_name} agora?`
+          )) return;
+
+          releaseButton.disabled = true;
+          releaseButton.textContent = "LIBERANDO...";
+
+          try {
+            await api("unsuspend_user", "POST", {
+              userId: account.user_id
+            });
+
+            alert("Conta liberada com sucesso!");
+            await loadAccounts();
+          } catch (error) {
+            alert("Erro ao liberar conta: " + error.message);
+            releaseButton.disabled = false;
+            releaseButton.textContent = "LIBERAR CONTA";
+          }
+        });
+
+        card.appendChild(releaseButton);
+
+      } else {
+        // MOTIVO DA SUSPENSÃO
+        const reasonInput = document.createElement("textarea");
+        reasonInput.placeholder = "Motivo da suspensão";
+        reasonInput.maxLength = 500;
+        reasonInput.rows = 3;
+
+        reasonInput.style.cssText =
+          "width:100%;min-width:0;box-sizing:border-box;padding:12px;margin-top:14px;background:#151515;color:white;border:1px solid #393939;border-radius:8px;resize:vertical;font-size:13px;";
+
+        // TEMPO DE SUSPENSÃO
+        const minutesInput = document.createElement("input");
+        minutesInput.type = "number";
+        minutesInput.min = "1";
+        minutesInput.max = "43200";
+        minutesInput.placeholder = "Tempo de suspensão em minutos";
+        minutesInput.style.cssText =
+          "width:100%;min-width:0;box-sizing:border-box;padding:12px;margin-top:9px;background:#151515;color:white;border:1px solid #393939;border-radius:8px;font-size:13px;";
+
+        // BOTÃO SUSPENDER
+        const suspendButton = createButton(
+          "SUSPENDER CONTA",
+          "orange"
+        );
+
+        suspendButton.style.marginTop = "9px";
+
+        suspendButton.addEventListener("click", async () => {
+          const minutes = Number(minutesInput.value);
+          const reason = reasonInput.value.trim();
+
+          if (!reason) {
+            alert("Informe o motivo da suspensão.");
+            return;
+          }
+
+          if (reason.length > 500) {
+            alert("O motivo pode ter no máximo 500 caracteres.");
+            return;
+          }
+
+          if (
+            !Number.isInteger(minutes) ||
+            minutes < 1 ||
+            minutes > 43200
+          ) {
+            alert("Informe um tempo entre 1 e 43200 minutos.");
+            return;
+          }
+
+          if (!confirm(
+            `Suspender a conta ${account.account_name} por ${minutes} minutos?\n\nMotivo: ${reason}`
+          )) return;
+
+          suspendButton.disabled = true;
+          suspendButton.textContent = "SUSPENDENDO...";
+
+          try {
+            await api("suspend_user", "POST", {
+              userId: account.user_id,
+              minutes,
+              reason
+            });
+
+            alert("Conta suspensa com sucesso!");
+            await loadAccounts();
+          } catch (error) {
+            alert("Erro ao suspender conta: " + error.message);
+            suspendButton.disabled = false;
+            suspendButton.textContent = "SUSPENDER CONTA";
+          }
+        });
+
+        card.append(
+          reasonInput,
+          minutesInput,
+          suspendButton
+        );
       }
 
-      card.appendChild(tools);
-
+      // ==================================
       // EXCLUIR CONTA
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.textContent = "EXCLUIR CONTA";
-      deleteButton.className = "logout";
+      // ==================================
 
-      deleteButton.style.cssText =
-        "width:100%;margin-top:12px;border-color:#ff4545;color:#ff4545;";
+      const deleteButton = createButton(
+        "EXCLUIR CONTA",
+        "red"
+      );
+
+      deleteButton.style.marginTop = "14px";
 
       deleteButton.addEventListener("click", async () => {
         const confirmation = prompt(
@@ -315,4 +473,4 @@ if (refreshAccountsButton) {
 
 // INICIAR
 protectAccountsPage();
-      
+  
