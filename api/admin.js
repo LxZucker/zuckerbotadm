@@ -5,44 +5,32 @@ const { getAccountAccessById, getAccountAccessForUser, updateAccountControl } = 
 const BUCKET = "zuckerbots-releases";
 const CORE_PREFIX = "core/";
 const MAX_CORE_FILE_SIZE = 2 * 1024 * 1024;
-// O agente do site cliente consulta este projeto Supabase diretamente.
 const AGENT_SUPABASE_PROJECT_REF = "khkjlodngoahevxkxswj";
 
 function safeEqual(a, b) {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
-
-  return x.length === y.length &&
-    crypto.timingSafeEqual(x, y);
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
 function sign(payload, secret) {
-  return crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("base64url");
+  return crypto.createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
 function getCookie(req, name) {
   const cookies = (req.headers.cookie || "").split(";");
-
   for (const item of cookies) {
     const separator = item.indexOf("=");
-
     if (separator < 0) continue;
-
     const key = item.slice(0, separator).trim();
     const value = item.slice(separator + 1).trim();
-
     if (key === name) return value;
   }
-
   return null;
 }
 
 function verifySession(req, secret) {
   const session = getCookie(req, "zucker_admin");
-
   if (!session) return null;
 
   const parts = session.split(".");
@@ -50,23 +38,16 @@ function verifySession(req, secret) {
 
   const [payload, signature] = parts;
   const expected = sign(payload, secret);
-
   if (!safeEqual(signature, expected)) return null;
 
   try {
-    const data = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8")
-    );
-
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (
       !data.user ||
       !data.exp ||
       data.exp < Date.now() ||
       data.user !== process.env.ADMIN_USERNAME
-    ) {
-      return null;
-    }
-
+    ) return null;
     return data;
   } catch {
     return null;
@@ -110,10 +91,7 @@ function assertAgentSupabaseProject() {
 async function supabaseRequest(path, options = {}) {
   const url = supabaseBaseUrl();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!key) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada.");
-  }
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada.");
 
   return fetch(`${url}${path}`, {
     ...options,
@@ -143,8 +121,8 @@ async function verifyReleaseObject(version, storagePath, expectedSize) {
       body: JSON.stringify({ expiresIn: 120 })
     }
   );
-  const result = await response.json().catch(() => ({}));
 
+  const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result.message || result.error || "O ZIP não foi encontrado no Storage.");
   }
@@ -169,12 +147,17 @@ async function verifyReleaseObject(version, storagePath, expectedSize) {
     method: "HEAD",
     signal: AbortSignal.timeout(20000)
   });
+
   if (!head.ok) {
     throw new Error(`O ZIP não está acessível para os agentes (HTTP ${head.status}).`);
   }
 
   const contentLength = Number(head.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > 0 && contentLength !== Number(expectedSize)) {
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > 0 &&
+    contentLength !== Number(expectedSize)
+  ) {
     throw new Error(`O tamanho armazenado (${contentLength} bytes) não confere com o tamanho registrado (${expectedSize} bytes).`);
   }
 
@@ -183,7 +166,6 @@ async function verifyReleaseObject(version, storagePath, expectedSize) {
 
 function safeCorePath(value) {
   if (typeof value !== "string") return null;
-
   const path = value.trim();
 
   if (
@@ -192,54 +174,27 @@ function safeCorePath(value) {
     path.startsWith("/") ||
     path.includes("\\") ||
     !/^[a-zA-Z0-9._/-]+$/.test(path)
-  ) {
-    return null;
-  }
+  ) return null;
 
   const parts = path.split("/");
-
-  if (
-    parts.some(part =>
-      !part ||
-      part === "." ||
-      part === ".."
-    )
-  ) {
-    return null;
-  }
+  if (parts.some(part => !part || part === "." || part === "..")) return null;
 
   const allowedExtensions = [
-    ".js",
-    ".cjs",
-    ".mjs",
-    ".json",
-    ".html",
-    ".css",
-    ".md",
-    ".txt"
+    ".js", ".cjs", ".mjs", ".json",
+    ".html", ".css", ".md", ".txt"
   ];
 
   const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
-
-  if (!allowedExtensions.includes(extension)) {
-    return null;
-  }
-
+  if (!allowedExtensions.includes(extension)) return null;
   return path;
 }
 
 function storagePathUrl(path) {
-  return path
-    .split("/")
-    .map(encodeURIComponent)
-    .join("/");
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
-// LISTAR ARQUIVOS RECURSIVAMENTE
 async function listCoreFilesRecursive(prefix = "core", depth = 0) {
-  if (depth > 20) {
-    throw new Error("Profundidade máxima de pastas excedida.");
-  }
+  if (depth > 20) throw new Error("Profundidade máxima de pastas excedida.");
 
   const files = [];
   let offset = 0;
@@ -250,56 +205,31 @@ async function listCoreFilesRecursive(prefix = "core", depth = 0) {
       `/storage/v1/object/list/${BUCKET}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prefix,
           limit,
           offset,
-          sortBy: {
-            column: "name",
-            order: "asc"
-          }
+          sortBy: { column: "name", order: "asc" }
         })
       }
     );
 
     const result = await response.json();
-
     if (!response.ok) {
       console.error("[CORE DIRECTORY]", prefix, result);
-
-      throw new Error(
-        result.message ||
-        result.error ||
-        "Erro ao consultar pasta do núcleo."
-      );
+      throw new Error(result.message || result.error || "Erro ao consultar pasta do núcleo.");
     }
-
-    if (!Array.isArray(result)) {
-      throw new Error("Resposta inválida do Storage.");
-    }
+    if (!Array.isArray(result)) throw new Error("Resposta inválida do Storage.");
 
     for (const item of result) {
       if (!item || !item.name) continue;
-
       const name = item.name;
-
-      const fullPath = name.startsWith(prefix + "/")
-        ? name
-        : `${prefix}/${name}`;
-
-      const isFolder =
-        item.id == null &&
-        item.metadata == null;
+      const fullPath = name.startsWith(prefix + "/") ? name : `${prefix}/${name}`;
+      const isFolder = item.id == null && item.metadata == null;
 
       if (isFolder) {
-        const nestedFiles = await listCoreFilesRecursive(
-          fullPath,
-          depth + 1
-        );
-
+        const nestedFiles = await listCoreFilesRecursive(fullPath, depth + 1);
         files.push(...nestedFiles);
       } else {
         files.push({
@@ -312,7 +242,6 @@ async function listCoreFilesRecursive(prefix = "core", depth = 0) {
     }
 
     if (result.length < limit) break;
-
     offset += limit;
   }
 
@@ -323,16 +252,11 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
 
   const secret = process.env.ADMIN_SESSION_SECRET;
-
   if (!secret || secret.length < 32) {
-    return res.status(500).json({
-      error: "Chave de sessão não configurada"
-    });
+    return res.status(500).json({ error: "Chave de sessão não configurada" });
   }
 
-  const action =
-    req.query?.action ||
-    req.body?.action;
+  const action = req.query?.action || req.body?.action;
 
   // LOGIN
   if (action === "login" && req.method === "POST") {
@@ -345,18 +269,14 @@ module.exports = async (req, res) => {
       username.length > 100 ||
       password.length > 200
     ) {
-      return res.status(400).json({
-        error: "Preencha usuário e senha corretamente"
-      });
+      return res.status(400).json({ error: "Preencha usuário e senha corretamente" });
     }
 
     if (
       !safeEqual(username, process.env.ADMIN_USERNAME || "") ||
       !safeEqual(password, process.env.ADMIN_PASSWORD || "")
     ) {
-      return res.status(401).json({
-        error: "Usuário ou senha incorretos"
-      });
+      return res.status(401).json({ error: "Usuário ou senha incorretos" });
     }
 
     const payload = Buffer.from(JSON.stringify({
@@ -365,17 +285,14 @@ module.exports = async (req, res) => {
     })).toString("base64url");
 
     const signature = sign(payload, secret);
-
     res.setHeader(
       "Set-Cookie",
       `zucker_admin=${payload}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`
     );
 
-    return res.status(200).json({
-      success: true
-    });
-  }
-
+    return res.status(200).json({ success: true });
+          }
+  
   // VERIFICAR SESSÃO
   if (action === "auth" && req.method === "GET") {
     const session = verifySession(req, secret);
@@ -436,7 +353,6 @@ module.exports = async (req, res) => {
         success: true,
         history: result
       });
-
     } catch (error) {
       console.error("[VALIDITY HISTORY]", error);
 
@@ -445,7 +361,7 @@ module.exports = async (req, res) => {
       });
     }
   }
-  
+
   // TESTAR SUPABASE
   if (action === "supabase_test" && req.method === "GET") {
     try {
@@ -500,7 +416,6 @@ module.exports = async (req, res) => {
         success: true,
         releases: result
       });
-
     } catch (error) {
       console.error("[LIST RELEASES]", error);
 
@@ -510,37 +425,55 @@ module.exports = async (req, res) => {
     }
   }
 
-  // PUBLICAR VERSÃO — só publica depois de confirmar que o arquivo existe
-  // e que o painel utiliza o mesmo projeto Supabase consultado pelos agentes.
+  // PUBLICAR VERSÃO
   if (action === "publish_release" && req.method === "POST") {
     try {
       assertAgentSupabaseProject();
       const { id } = req.body || {};
 
       if (typeof id !== "string" || !id.trim() || id.length > 100) {
-        return res.status(400).json({ error: "Identificador da versão inválido." });
+        return res.status(400).json({
+          error: "Identificador da versão inválido."
+        });
       }
 
       const lookup = await supabaseRequest(
         `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status,storage_path,sha256,package_size`
       );
+
       const releaseRows = await lookup.json().catch(() => []);
+
       if (!lookup.ok || !Array.isArray(releaseRows)) {
         throw new Error("Não foi possível validar o registro da versão.");
       }
+
       if (!releaseRows.length) {
-        return res.status(404).json({ error: "Versão não encontrada." });
+        return res.status(404).json({
+          error: "Versão não encontrada."
+        });
       }
 
       const release = releaseRows[0];
+
       if (!/^\d+\.\d+\.\d+$/.test(String(release.version || ""))) {
-        return res.status(400).json({ error: "A versão cadastrada possui um número inválido." });
+        return res.status(400).json({
+          error: "A versão cadastrada possui um número inválido."
+        });
       }
+
       if (!/^[a-f0-9]{64}$/i.test(String(release.sha256 || ""))) {
-        return res.status(400).json({ error: "O SHA-256 cadastrado é inválido." });
+        return res.status(400).json({
+          error: "O SHA-256 cadastrado é inválido."
+        });
       }
-      if (!Number.isSafeInteger(Number(release.package_size)) || Number(release.package_size) <= 0) {
-        return res.status(400).json({ error: "O tamanho do pacote cadastrado é inválido." });
+
+      if (
+        !Number.isSafeInteger(Number(release.package_size)) ||
+        Number(release.package_size) <= 0
+      ) {
+        return res.status(400).json({
+          error: "O tamanho do pacote cadastrado é inválido."
+        });
       }
 
       await verifyReleaseObject(
@@ -557,27 +490,36 @@ module.exports = async (req, res) => {
             "Content-Type": "application/json",
             Prefer: "return=representation"
           },
-          body: JSON.stringify({ status: "published" })
+          body: JSON.stringify({
+            status: "published"
+          })
         }
       );
+
       const result = await response.json().catch(() => []);
 
       if (!response.ok) {
         console.error("[PUBLISH RELEASE]", result);
+
         return res.status(400).json({
           error: result.message || result.error || "Não foi possível publicar a versão."
         });
       }
-      if (!result.length) return res.status(404).json({ error: "Versão não encontrada." });
+
+      if (!result.length) {
+        return res.status(404).json({
+          error: "Versão não encontrada."
+        });
+      }
 
       return res.status(200).json({
         success: true,
         message: `Versão ${release.version} validada no Storage e publicada para os agentes.`,
         release: result[0]
       });
-
     } catch (error) {
       console.error("[PUBLISH RELEASE]", error);
+
       return res.status(error.code === "SUPABASE_PROJECT_MISMATCH" ? 409 : 502).json({
         error: error.message || "Erro ao publicar a versão."
       });
@@ -654,7 +596,6 @@ module.exports = async (req, res) => {
         storagePath,
         signedUrl
       });
-
     } catch (error) {
       console.error("[CREATE UPLOAD]", error);
 
@@ -662,9 +603,9 @@ module.exports = async (req, res) => {
         error: error.message || "Erro ao preparar o envio."
       });
     }
-  }
-
-  // REGISTRAR VERSÃO COMO RASCUNHO
+                                        }
+      
+  // SALVAR VERSÃO COMO RASCUNHO
   if (action === "save_release" && req.method === "POST") {
     try {
       const {
@@ -672,16 +613,11 @@ module.exports = async (req, res) => {
         storagePath,
         sha256,
         packageSize,
-        releaseNotes
+        changelog
       } = req.body || {};
 
-      if (
-        typeof version !== "string" ||
-        !/^\d+\.\d+\.\d+$/.test(version)
-      ) {
-        return res.status(400).json({
-          error: "Versão inválida."
-        });
+      if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) {
+        return res.status(400).json({ error: "Versão inválida." });
       }
 
       if (
@@ -689,210 +625,120 @@ module.exports = async (req, res) => {
         !storagePath.startsWith(`releases/${version}/`) ||
         !storagePath.endsWith(".zip")
       ) {
-        return res.status(400).json({
-          error: "Caminho do pacote inválido."
-        });
+        return res.status(400).json({ error: "Arquivo inválido." });
       }
 
-      if (
-        typeof sha256 !== "string" ||
-        !/^[a-f0-9]{64}$/i.test(sha256)
-      ) {
-        return res.status(400).json({
-          error: "Hash SHA-256 inválido."
-        });
+      if (typeof sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(sha256)) {
+        return res.status(400).json({ error: "Hash SHA-256 inválido." });
       }
 
-      if (
-        !Number.isSafeInteger(packageSize) ||
-        packageSize <= 0 ||
-        packageSize > 50 * 1024 * 1024
-      ) {
-        return res.status(400).json({
-          error: "Tamanho do pacote inválido."
-        });
+      const size = Number(packageSize);
+
+      if (!Number.isInteger(size) || size < 1 || size > 50 * 1024 * 1024) {
+        return res.status(400).json({ error: "Tamanho do arquivo inválido." });
       }
 
-      // Não registra um release se o ZIP não estiver acessível no mesmo Supabase
-      // que os agentes consultam.
-      await verifyReleaseObject(version, storagePath, packageSize);
+      await verifyReleaseObject(storagePath, size);
 
-      const response = await supabaseRequest(
-        "/rest/v1/bot_releases",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Prefer: "return=representation"
-          },
-          body: JSON.stringify({
-            version,
-            storage_path: storagePath,
-            sha256: sha256.toLowerCase(),
-            package_size: packageSize,
-            release_notes: String(releaseNotes || "").slice(0, 5000),
-            status: "draft"
-          })
-        }
-      );
+      const result = await supabaseRequest("/rest/v1/bot_releases", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify({
+          version,
+          storage_path: storagePath,
+          sha256: sha256.toLowerCase(),
+          package_size: size,
+          changelog: String(changelog || ""),
+          status: "draft"
+        })
+      });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("[SAVE RELEASE]", result);
-
-        return res.status(400).json({
-          error: result.code === "23505"
-            ? "Essa versão já existe."
-            : "Não foi possível registrar a versão.",
-          details: result.message || result.error || "Erro desconhecido"
-        });
+      if (!result.ok) {
+        throw new Error(await result.text());
       }
+
+      const release = await result.json();
 
       return res.status(200).json({
         success: true,
-        message: "Versão salva como rascunho.",
-        release: result[0]
+        release: release[0]
       });
-
     } catch (error) {
       console.error("[SAVE RELEASE]", error);
-
-      return res.status(error.code === "SUPABASE_PROJECT_MISMATCH" ? 409 : 502).json({
-        error: error.message || "Erro ao registrar a versão."
+      return res.status(502).json({
+        error: "Não foi possível salvar a versão."
       });
     }
   }
 
-  // ==========================================
-  // EXCLUIR RASCUNHO DE ATUALIZAÇÃO
-  // ==========================================
-
+  // APAGAR RASCUNHO
   if (action === "delete_release" && req.method === "POST") {
     try {
       const { id } = req.body || {};
 
-      if (
-        typeof id !== "string" ||
-        !id.trim() ||
-        id.length > 100
-      ) {
-        return res.status(400).json({
-          error: "Identificador do rascunho inválido."
-        });
+      if (typeof id !== "string" || !id.trim()) {
+        return res.status(400).json({ error: "Identificador inválido." });
       }
 
-      // Busca o registro antes de permitir a exclusão.
-      const lookup = await supabaseRequest(
-        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status,storage_path`
+      const releaseResponse = await supabaseRequest(
+        `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,storage_path,status`
       );
 
-      const releases = await lookup.json().catch(() => []);
-
-      if (!lookup.ok || !Array.isArray(releases)) {
-        throw new Error("Não foi possível consultar o rascunho.");
+      if (!releaseResponse.ok) {
+        throw new Error(await releaseResponse.text());
       }
 
-      if (!releases.length) {
-        return res.status(404).json({
-          error: "Rascunho não encontrado."
-        });
-      }
-
+      const releases = await releaseResponse.json();
       const release = releases[0];
 
-      // Impede apagar versões já publicadas.
+      if (!release) {
+        return res.status(404).json({ error: "Versão não encontrada." });
+      }
+
       if (release.status !== "draft") {
-        return res.status(403).json({
-          error: "Esta versão não é um rascunho e não pode ser excluída por esta função."
+        return res.status(400).json({
+          error: "Somente rascunhos podem ser apagados."
         });
       }
 
-      // Confere se o caminho pertence ao formato esperado.
       if (
         typeof release.storage_path !== "string" ||
         !new RegExp(
-          `^releases/${release.version}/[a-f0-9-]{36}\\.zip$`,
-          "i"
+          `^releases/${release.version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/[a-f0-9-]{36}\\.zip$`
         ).test(release.storage_path)
       ) {
-        return res.status(400).json({
-          error: "O caminho do arquivo deste rascunho é inválido."
-        });
+        return res.status(400).json({ error: "Caminho do arquivo inválido." });
       }
 
-      // Apaga o ZIP do Storage.
       const storageResponse = await supabaseRequest(
-        `/storage/v1/object/${BUCKET}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prefixes: [release.storage_path]
-          })
-        }
+        `/storage/v1/object/${BUCKET}/${storagePathUrl(release.storage_path)}`,
+        { method: "DELETE" }
       );
 
-      const storageResult = await storageResponse.json().catch(() => ({}));
-
-      if (!storageResponse.ok) {
-        console.error("[DELETE DRAFT STORAGE]", storageResult);
-
-        return res.status(502).json({
-          error: "Não foi possível apagar o arquivo ZIP do rascunho.",
-          details:
-            storageResult.message ||
-            storageResult.error ||
-            "Erro no Storage."
-        });
+      if (!storageResponse.ok && storageResponse.status !== 404) {
+        throw new Error(await storageResponse.text());
       }
 
-      // Apaga o registro somente se ainda estiver como rascunho.
       const deleteResponse = await supabaseRequest(
         `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&status=eq.draft`,
-        {
-          method: "DELETE",
-          headers: {
-            Prefer: "return=representation"
-          }
-        }
+        { method: "DELETE" }
       );
 
-      const deleted = await deleteResponse.json().catch(() => []);
-
       if (!deleteResponse.ok) {
-        console.error("[DELETE DRAFT DATABASE]", deleted);
-
-        return res.status(502).json({
-          error: "O ZIP foi apagado, mas não foi possível excluir o registro do rascunho."
-        });
+        throw new Error(await deleteResponse.text());
       }
 
-      if (!Array.isArray(deleted) || !deleted.length) {
-        return res.status(409).json({
-          error: "O rascunho mudou de estado e não pôde ser excluído."
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: `Rascunho da versão ${release.version} excluído com sucesso.`
-      });
-
+      return res.status(200).json({ success: true });
     } catch (error) {
       console.error("[DELETE RELEASE]", error);
-
-      return res.status(500).json({
-        error: error.message || "Erro ao excluir o rascunho."
+      return res.status(502).json({
+        error: "Não foi possível apagar o rascunho."
       });
     }
   }
-  
-  // ==========================================
-  // GERENCIADOR DO NÚCLEO
-  // ==========================================
 
   // LISTAR ARQUIVOS DO NÚCLEO
   if (action === "list_core_files" && req.method === "GET") {
@@ -903,38 +749,27 @@ module.exports = async (req, res) => {
         success: true,
         files
       });
-
     } catch (error) {
       console.error("[LIST CORE FILES]", error);
-
       return res.status(502).json({
-        error: "Não foi possível listar os arquivos do núcleo.",
-        details: error.message
+        error: "Não foi possível listar os arquivos do núcleo."
       });
     }
   }
 
-    // PREPARAR UPLOAD OU SUBSTITUIÇÃO DE ARQUIVO DO NÚCLEO
+  // CRIAR UPLOAD DE ARQUIVO DO NÚCLEO
   if (action === "create_core_upload" && req.method === "POST") {
     try {
       const { filePath, fileSize } = req.body || {};
-
       const safePath = safeCorePath(filePath);
+      const size = Number(fileSize);
 
       if (!safePath) {
-        return res.status(400).json({
-          error: "Caminho ou extensão de arquivo não permitido."
-        });
+        return res.status(400).json({ error: "Caminho inválido." });
       }
 
-      if (
-        !Number.isSafeInteger(fileSize) ||
-        fileSize <= 0 ||
-        fileSize > MAX_CORE_FILE_SIZE
-      ) {
-        return res.status(400).json({
-          error: "O arquivo deve ter até 2 MB."
-        });
+      if (!Number.isInteger(size) || size < 1 || size > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: "Tamanho do arquivo inválido." });
       }
 
       const storagePath = `${CORE_PREFIX}${safePath}`;
@@ -943,48 +778,32 @@ module.exports = async (req, res) => {
         `/storage/v1/object/upload/sign/${BUCKET}/${storagePathUrl(storagePath)}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            upsert: true
-          })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ upsert: true })
         }
       );
 
-      const result = await response.json();
-
-      if (!response.ok || !result.url) {
-        console.error("[CORE UPLOAD SIGN]", result);
-
-        return res.status(502).json({
-          error: "Não foi possível preparar o envio do arquivo.",
-          details: result.message || result.error || "Erro no Storage"
-        });
+      if (!response.ok) {
+        throw new Error(await response.text());
       }
 
-      const signedUrl = /^https?:\/\//i.test(result.url)
-        ? result.url
-        : result.url.startsWith("/storage/v1/")
-          ? `${supabaseUrl}${result.url}`
-          : `${supabaseUrl}/storage/v1${result.url.startsWith("/") ? result.url : `/${result.url}`}`;
+      const data = await response.json();
+      const signedUrl = data.signedURL || data.url;
 
       return res.status(200).json({
         success: true,
-        storagePath,
-        signedUrl
+        signedUrl,
+        storagePath
       });
-
     } catch (error) {
-      console.error("[CORE UPLOAD]", error);
-
-      return res.status(500).json({
-        error: "Erro ao preparar o envio do arquivo."
+      console.error("[CREATE CORE UPLOAD]", error);
+      return res.status(502).json({
+        error: "Não foi possível preparar o envio do arquivo."
       });
     }
   }
 
-  // EXCLUIR ARQUIVO DO NÚCLEO
+  // APAGAR ARQUIVO DO NÚCLEO
   if (action === "delete_core_file" && req.method === "POST") {
     try {
       const { storagePath } = req.body || {};
@@ -993,65 +812,135 @@ module.exports = async (req, res) => {
         typeof storagePath !== "string" ||
         !storagePath.startsWith(CORE_PREFIX)
       ) {
-        return res.status(400).json({
-          error: "Caminho do arquivo inválido."
-        });
+        return res.status(400).json({ error: "Caminho inválido." });
       }
 
-      const safePath = safeCorePath(
-        storagePath.slice(CORE_PREFIX.length)
-      );
+      const safePath = safeCorePath(storagePath.slice(CORE_PREFIX.length));
 
       if (!safePath) {
-        return res.status(400).json({
-          error: "Arquivo não permitido."
-        });
+        return res.status(400).json({ error: "Caminho inválido." });
       }
 
       const response = await supabaseRequest(
         `/storage/v1/object/${BUCKET}`,
         {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prefixes: [`${CORE_PREFIX}${safePath}`]
           })
         }
       );
 
-      const result = await response.json().catch(() => ({}));
-
       if (!response.ok) {
-        console.error("[DELETE CORE FILE]", result);
-
-        return res.status(502).json({
-          error: "Não foi possível excluir o arquivo.",
-          details: result.message || result.error || "Erro no Storage"
-        });
+        throw new Error(await response.text());
       }
 
-      return res.status(200).json({
-        success: true,
-        message: "Arquivo excluído com sucesso."
-      });
-
+      return res.status(200).json({ success: true });
     } catch (error) {
       console.error("[DELETE CORE FILE]", error);
-
-      return res.status(500).json({
-        error: "Erro ao excluir o arquivo."
+      return res.status(502).json({
+        error: "Não foi possível apagar o arquivo do núcleo."
       });
     }
   }
 
-  
-  
-  // ==========================================
-  // SUSPENSÃO E VALIDADE DAS CONTAS
-  // ==========================================
+  // ADICIONAR OU RENOVAR VALIDADE DA CONTA
+  if (action === "set_validity" && req.method === "POST") {
+    try {
+      const { userId } = req.body || {};
+      const days = Number(req.body?.days);
 
+      if (typeof userId !== "string" || !userId.trim() || userId.length > 100) {
+        return res.status(400).json({ error: "Conta inválida." });
+      }
+
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        return res.status(400).json({
+          error: "Informe uma quantidade entre 1 e 3650 dias."
+        });
+      }
+
+      const access = await getAccountAccessById(userId);
+      const now = Date.now();
+      const previousValidUntil = access.validityUntil || null;
+      const currentTime = previousValidUntil
+        ? new Date(previousValidUntil).getTime()
+        : 0;
+
+      const baseTime =
+        Number.isFinite(currentTime) && currentTime > now
+          ? currentTime
+          : now;
+
+      const validUntil = new Date(
+        baseTime + days * 24 * 60 * 60 * 1000
+      ).toISOString();
+
+      const renewalCount = Number(access.validityRenewalCount || 0) + 1;
+
+      const updated = await updateAccountControl(userId, {
+        zucker_valid_until: validUntil,
+        zucker_validity_type: "paid",
+        zucker_validity_updated_at: new Date(now).toISOString(),
+        zucker_validity_last_renewed_at: new Date(now).toISOString(),
+        zucker_validity_renewal_count: renewalCount
+      });
+
+      let historySaved = false;
+
+      try {
+        const accountName =
+          access.user?.user_metadata?.username ||
+          access.user?.user_metadata?.name ||
+          access.user?.email?.split("@")[0] ||
+          "Conta não identificada";
+
+        const historyResponse = await supabaseRequest(
+          "/rest/v1/account_validity_history",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Prefer: "return=minimal"
+            },
+            body: JSON.stringify({
+              user_id: userId,
+              account_name: accountName,
+              event_type: "validity_added",
+              days_added: days,
+              previous_valid_until: previousValidUntil,
+              new_valid_until: updated.validityUntil
+            })
+          }
+        );
+
+        if (!historyResponse.ok) {
+          throw new Error(await historyResponse.text());
+        }
+
+        historySaved = true;
+      } catch (historyError) {
+        console.error("[SAVE VALIDITY HISTORY]", historyError);
+      }
+
+      return res.status(200).json({
+        success: true,
+        valid_until: updated.validityUntil,
+        days_added: days,
+        validity_type: "paid",
+        renewal_count: updated.validityRenewalCount,
+        history_saved: historySaved
+      });
+    } catch (error) {
+      console.error("[SET USER VALIDITY]", error);
+      return res.status(error.status === 404 ? 404 : 502).json({
+        error: "Não foi possível atualizar a validade da conta."
+      });
+    }
+  }
+
+  // SUSPENDER OU LIBERAR CONTA
   if (
     (action === "suspend_user" || action === "unsuspend_user") &&
     req.method === "POST"
@@ -1064,28 +953,39 @@ module.exports = async (req, res) => {
       if (typeof userId !== "string" || !userId.trim() || userId.length > 100) {
         return res.status(400).json({ error: "Conta inválida." });
       }
-      if (action === "suspend_user" && (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200)) {
-        return res.status(400).json({ error: "Informe uma duração entre 1 e 43200 minutos." });
+
+      if (
+        action === "suspend_user" &&
+        (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200)
+      ) {
+        return res.status(400).json({ error: "Duração da suspensão inválida." });
       }
+
       if (action === "suspend_user" && !reason) {
         return res.status(400).json({ error: "Informe o motivo da suspensão." });
       }
+
       if (reason.length > 500) {
-        return res.status(400).json({ error: "O motivo pode ter no máximo 500 caracteres." });
+        return res.status(400).json({ error: "Motivo muito longo." });
       }
 
       const now = new Date();
-      const updates = action === "suspend_user"
-        ? {
-            zucker_suspended_until: new Date(now.getTime() + minutes * 60000).toISOString(),
-            zucker_suspended_at: now.toISOString(),
-            zucker_suspension_reason: reason
-          }
-        : {
-            zucker_suspended_until: null,
-            zucker_suspended_at: null,
-            zucker_suspension_reason: null
-          };
+
+      const updates =
+        action === "suspend_user"
+          ? {
+              zucker_suspended_until: new Date(
+                now.getTime() + minutes * 60000
+              ).toISOString(),
+              zucker_suspended_at: now.toISOString(),
+              zucker_suspension_reason: reason
+            }
+          : {
+              zucker_suspended_until: null,
+              zucker_suspended_at: null,
+              zucker_suspension_reason: null
+            };
+
       const access = await updateAccountControl(userId, updates);
 
       return res.status(200).json({
@@ -1101,40 +1001,7 @@ module.exports = async (req, res) => {
       });
     }
   }
-
-  
-  // HISTÓRICO DE VALIDADE
-  if (action === "list_validity_history" && req.method === "GET") {
-    try {
-      const response = await supabaseRequest(
-        "/rest/v1/account_validity_history?select=*&order=created_at.desc&limit=2000"
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("[VALIDITY HISTORY]", result);
-
-        return res.status(502).json({
-          error: "Não foi possível carregar o histórico de validade."
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        history: result
-      });
-
-    } catch (error) {
-      console.error("[VALIDITY HISTORY]", error);
-
-      return res.status(500).json({
-        error: "Erro ao consultar o histórico de validade."
-      });
-    }
-  }
-
-
+    
   // ==========================================
   // EXCLUIR CONTA DEFINITIVAMENTE
   // ==========================================
@@ -1260,7 +1127,9 @@ module.exports = async (req, res) => {
       if (!authDelete.ok) {
         const details = await authDelete.text();
         console.error("[DELETE ACCOUNT AUTH]", details);
-        throw new Error("Os dados foram tratados, mas o Supabase não conseguiu excluir a conta.");
+        throw new Error(
+          "Os dados foram tratados, mas o Supabase não conseguiu excluir a conta."
+        );
       }
 
       return res.status(200).json({
@@ -1276,30 +1145,41 @@ module.exports = async (req, res) => {
       });
     }
   }
-  
-  // Lista todas as contas cadastradas, inclusive as que ainda não possuem bot vinculado.
+
+  // LISTAR TODAS AS CONTAS CADASTRADAS
   if (action === "list_accounts" && req.method === "GET") {
     try {
       const accounts = [];
       const perPage = 1000;
+
       for (let page = 1; page <= 20; page++) {
         const response = await supabaseRequest(
           `/auth/v1/admin/users?page=${page}&per_page=${perPage}`
         );
+
         const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-          throw new Error(data.message || data.msg || "Falha ao consultar usuários.");
+          throw new Error(
+            data.message || data.msg || "Falha ao consultar usuários."
+          );
         }
+
         const users = Array.isArray(data.users) ? data.users : [];
+
         if (!users.length) break;
 
         for (const user of users) {
           try {
             const access = await getAccountAccessForUser(user, false);
             const meta = access.metadata;
+
             accounts.push({
               user_id: user.id,
-              account_name: meta.username || user.email?.split("@")[0] || "Não identificado",
+              account_name:
+                meta.username ||
+                user.email?.split("@")[0] ||
+                "Não identificado",
               email: user.email || null,
               created_at: user.created_at || null,
               valid_until: access.validityUntil,
@@ -1313,30 +1193,58 @@ module.exports = async (req, res) => {
               suspension_reason: access.suspensionReason
             });
           } catch (accountError) {
-            console.error("[LIST ACCOUNT ITEM]", user.id, accountError.message);
+            console.error(
+              "[LIST ACCOUNT ITEM]",
+              user.id,
+              accountError.message
+            );
           }
         }
+
         if (users.length < perPage) break;
       }
-      accounts.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      return res.status(200).json({ success: true, accounts });
+
+      accounts.sort(
+        (a, b) =>
+          new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+
+      return res.status(200).json({
+        success: true,
+        accounts
+      });
     } catch (error) {
       console.error("[LIST ACCOUNTS]", error);
-      return res.status(502).json({ error: "Não foi possível consultar as contas." });
+
+      return res.status(502).json({
+        error: "Não foi possível consultar as contas."
+      });
     }
   }
 
+  // RELATÓRIOS DE ATUALIZAÇÃO
   if (action === "list_update_reports" && req.method === "GET") {
     try {
       const response = await supabaseRequest(
         "/rest/v1/bot_update_events?select=id,user_id,device_id,version,status,message,created_at&order=created_at.desc&limit=100"
       );
+
       const reports = await response.json().catch(() => []);
-      if (!response.ok) throw new Error("Falha ao consultar os relatórios de atualização.");
-      return res.status(200).json({ success: true, reports: Array.isArray(reports) ? reports : [] });
+
+      if (!response.ok) {
+        throw new Error("Falha ao consultar os relatórios de atualização.");
+      }
+
+      return res.status(200).json({
+        success: true,
+        reports: Array.isArray(reports) ? reports : []
+      });
     } catch (error) {
       console.error("[UPDATE REPORTS]", error);
-      return res.status(502).json({ error: "Não foi possível consultar os relatórios." });
+
+      return res.status(502).json({
+        error: "Não foi possível consultar os relatórios."
+      });
     }
   }
 
@@ -1369,23 +1277,28 @@ module.exports = async (req, res) => {
             Prefer: "return=representation"
           },
           body: JSON.stringify({
-  agent_token_hash: null,
-  whatsapp_connected: false
-})
+            agent_token_hash: null,
+            whatsapp_connected: false
+          })
         }
       );
 
       const updated = await response.json().catch(() => []);
 
-            if (!response.ok) {
+      if (!response.ok) {
         console.error("[FORCE UNLINK]", updated);
+
         return res.status(502).json({
           error: "Falha no Supabase ao revogar dispositivo.",
-          details: updated.message || updated.error || updated.details || JSON.stringify(updated),
+          details:
+            updated.message ||
+            updated.error ||
+            updated.details ||
+            JSON.stringify(updated),
           code: updated.code || null,
           hint: updated.hint || null
         });
-            }
+      }
 
       if (!Array.isArray(updated) || !updated.length) {
         return res.status(404).json({
@@ -1400,16 +1313,17 @@ module.exports = async (req, res) => {
 
     } catch (error) {
       console.error("[FORCE UNLINK]", error);
+
       return res.status(500).json({
         error: "Erro ao forçar a desvinculação."
       });
     }
   }
-  
+
   // ==========================================
   // DISPOSITIVOS CONECTADOS
   // ==========================================
-  
+
   if (action === "list_devices" && req.method === "GET") {
     try {
       const response = await supabaseRequest(
@@ -1430,14 +1344,19 @@ module.exports = async (req, res) => {
         result.map(device => device.user_id).filter(Boolean)
       )];
 
-
       const accountInfo = {};
+
       await Promise.all(userIds.map(async userId => {
         try {
           const access = await getAccountAccessById(userId);
           const metadata = access.metadata;
+
           accountInfo[userId] = {
-            account_name: access.user?.user_metadata?.username || access.user?.email?.split("@")[0] || metadata.username || "Não identificado",
+            account_name:
+              access.user?.user_metadata?.username ||
+              access.user?.email?.split("@")[0] ||
+              metadata.username ||
+              "Não identificado",
             suspended: access.suspended,
             suspended_until: access.suspendedUntil,
             suspension_remaining_ms: access.suspensionRemainingMs,
@@ -1455,37 +1374,37 @@ module.exports = async (req, res) => {
       }));
 
       const pairingResponse = await supabaseRequest(
-  "/rest/v1/whatsapp_pairing?select=device_id,phone_number,created_at&order=created_at.desc&limit=500"
-);
+        "/rest/v1/whatsapp_pairing?select=device_id,phone_number,created_at&order=created_at.desc&limit=500"
+      );
 
-const pairings = pairingResponse.ok
-  ? await pairingResponse.json().catch(() => [])
-  : [];
+      const pairings = pairingResponse.ok
+        ? await pairingResponse.json().catch(() => [])
+        : [];
 
-const pairingInfo = {};
+      const pairingInfo = {};
 
-for (const pairing of pairings) {
-  if (!pairingInfo[pairing.device_id]) {
-    pairingInfo[pairing.device_id] = pairing.phone_number;
-  }
-}
+      for (const pairing of pairings) {
+        if (!pairingInfo[pairing.device_id]) {
+          pairingInfo[pairing.device_id] = pairing.phone_number;
+        }
+      }
 
-const devices = result.map(device => ({
-  ...device,
-  whatsapp_number: pairingInfo[device.id] || null,
-  ...(accountInfo[device.user_id] || {
-    account_name: "Não identificado",
-    suspended: false,
-    suspended_until: null,
-    suspension_remaining_ms: 0,
-    valid_until: null,
-    validity_type: "none",
-    validity_remaining_ms: 0,
-    validity_expired: false,
-    renewal_count: 0,
-    trial_granted_at: null
-  })
-}));
+      const devices = result.map(device => ({
+        ...device,
+        whatsapp_number: pairingInfo[device.id] || null,
+        ...(accountInfo[device.user_id] || {
+          account_name: "Não identificado",
+          suspended: false,
+          suspended_until: null,
+          suspension_remaining_ms: 0,
+          valid_until: null,
+          validity_type: "none",
+          validity_remaining_ms: 0,
+          validity_expired: false,
+          renewal_count: 0,
+          trial_granted_at: null
+        })
+      }));
 
       return res.status(200).json({
         success: true,
@@ -1501,11 +1420,11 @@ const devices = result.map(device => ({
     }
   }
 
-  
   return res.status(404).json({
     error: "Operação não encontrada",
     receivedAction: action || null,
     receivedMethod: req.method
   });
 };
+
   
