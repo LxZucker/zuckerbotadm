@@ -897,7 +897,49 @@ async function loadAccounts() {
         suspended.textContent = `Suspensa até: ${formatDate(account.suspended_until)} · ${account.suspension_reason || "Motivo não informado"}`;
         card.appendChild(suspended);
       }
-      card.appendChild(tools);
+            card.appendChild(tools);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "EXCLUIR CONTA";
+      deleteButton.className = "logout";
+      deleteButton.style.cssText =
+        "width:100%;margin-top:12px;border-color:#ff4545;color:#ff4545;";
+
+      deleteButton.addEventListener("click", async () => {
+        const confirmation = prompt(
+          `ATENÇÃO! Essa ação é PERMANENTE.\n\n` +
+          `A conta ${account.account_name} será excluída definitivamente.\n` +
+          `Digite EXCLUIR para confirmar:`
+        );
+
+        if (confirmation !== "EXCLUIR") {
+          alert("Exclusão cancelada.");
+          return;
+        }
+
+        if (!confirm(
+          `Última confirmação:\n\nDeseja realmente excluir a conta ${account.account_name}?\n\nEssa ação não poderá ser desfeita.`
+        )) return;
+
+        deleteButton.disabled = true;
+        deleteButton.textContent = "EXCLUINDO...";
+
+        try {
+          await api("delete_account", "POST", {
+            userId: account.user_id
+          });
+
+          alert("Conta excluída com sucesso!");
+          await Promise.all([loadAccounts(), loadDevices()]);
+        } catch (error) {
+          alert("Erro ao excluir conta: " + error.message);
+          deleteButton.disabled = false;
+          deleteButton.textContent = "EXCLUIR CONTA";
+        }
+      });
+
+      card.appendChild(deleteButton);
       accountsList.appendChild(card);
     }
   } catch (error) {
