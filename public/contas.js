@@ -142,6 +142,10 @@ async function loadAccounts() {
 
   try {
     const result = await api("list_accounts");
+    const devicesResult = await api("list_devices");
+const devices = Array.isArray(devicesResult.devices)
+  ? devicesResult.devices
+  : [];
 
     const accounts = Array.isArray(result.accounts)
       ? result.accounts
