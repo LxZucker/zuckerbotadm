@@ -1049,6 +1049,70 @@ module.exports = async (req, res) => {
   }
 
   // ==========================================
+  // FORÇAR DESVINCULAÇÃO DO DISPOSITIVO
+  // ==========================================
+
+  if (action === "force_unlink_device" && req.method === "POST") {
+    try {
+      const { deviceId, userId } = req.body || {};
+
+      if (
+        typeof deviceId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(deviceId) ||
+        typeof userId !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(userId)
+      ) {
+        return res.status(400).json({
+          error: "Conta ou dispositivo inválido."
+        });
+      }
+
+      const response = await supabaseRequest(
+        `/rest/v1/devices?id=eq.${encodeURIComponent(deviceId)}` +
+        `&user_id=eq.${encodeURIComponent(userId)}&select=id`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify({
+            status: "unlinked",
+            agent_token_hash: null,
+            whatsapp_connected: false
+          })
+        }
+      );
+
+      const updated = await response.json().catch(() => []);
+
+      if (!response.ok) {
+        console.error("[FORCE UNLINK]", updated);
+        return res.status(502).json({
+          error: "Não foi possível revogar o dispositivo."
+        });
+      }
+
+      if (!Array.isArray(updated) || !updated.length) {
+        return res.status(404).json({
+          error: "Dispositivo não encontrado nesta conta."
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Dispositivo desvinculado e autorização revogada."
+      });
+
+    } catch (error) {
+      console.error("[FORCE UNLINK]", error);
+      return res.status(500).json({
+        error: "Erro ao forçar a desvinculação."
+      });
+    }
+  }
+  
+  // ==========================================
   // DISPOSITIVOS CONECTADOS
   // ==========================================
   
