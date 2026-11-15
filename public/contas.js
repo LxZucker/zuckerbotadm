@@ -150,7 +150,18 @@ const devices = Array.isArray(devicesResult.devices)
     const accounts = Array.isArray(result.accounts)
       ? result.accounts
       : [];
+// INFORMAÇÕES DO BOT
+const device = devicesByUser.get(account.user_id);
 
+const whatsappNumber = document.createElement("p");
+whatsappNumber.textContent = device?.whatsapp_number
+  ? `Número do bot: ${device.whatsapp_number}`
+  : "Número do bot: não registrado";
+
+const lastOnline = document.createElement("p");
+lastOnline.textContent = device?.last_seen
+  ? `Última vez online: ${formatDate(device.last_seen)}`
+  : "Última vez online: sem registro";
     if (!accounts.length) {
       accountsMessage.textContent = "Nenhuma conta encontrada.";
       return;
