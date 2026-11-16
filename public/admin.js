@@ -113,6 +113,7 @@ if (logoutButton) {
 }
 
 async function calculateSHA256(file) {
+async function calculateSHA256(file) {
   const buffer = await new Promise((resolve, reject) => {
     const reader = new FileReader();
 
