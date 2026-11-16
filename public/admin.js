@@ -541,7 +541,7 @@ if (releaseForm) {
         storagePath: upload.storagePath,
         sha256,
         packageSize: file.size,
-        releaseNotes: notes
+        changelog: notes
       });
 
       message.style.color = "#19e68c";
