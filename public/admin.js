@@ -118,8 +118,10 @@ async function calculateSHA256(file) {
 
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(
-      new Error("Não foi possível ler o arquivo ZIP.")
-    );
+  new Error(
+    `Erro ao ler ZIP: ${reader.error?.name} - ${reader.error?.message}`
+  )
+);
 
     reader.readAsArrayBuffer(file);
   });
