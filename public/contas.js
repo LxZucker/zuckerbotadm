@@ -268,6 +268,49 @@ async function loadAccounts() {
         whatsappNumber,
         lastOnline
       );
+            // FORÇAR DESVINCULAÇÃO DO DISPOSITIVO
+      if (device?.id) {
+        const forceUnlinkButton = createButton(
+          "FORÇAR DESVINCULAÇÃO",
+          "red"
+        );
+
+        forceUnlinkButton.style.marginTop = "10px";
+
+        forceUnlinkButton.addEventListener("click", async () => {
+          if (!confirm(
+            `Deseja realmente forçar a desvinculação do bot de ${account.account_name}?\n\n` +
+            "O dispositivo perderá a autorização, mesmo se estiver offline.\n" +
+            "A conta do cliente NÃO será excluída."
+          )) return;
+
+          forceUnlinkButton.disabled = true;
+          forceUnlinkButton.textContent = "DESVINCULANDO...";
+
+          try {
+            await api("force_unlink_device", "POST", {
+              deviceId: device.id,
+              userId: account.user_id
+            });
+
+            alert(
+              "Dispositivo desvinculado! A conta continua cadastrada."
+            );
+
+            await loadAccounts();
+
+          } catch (error) {
+            alert(
+              "Erro ao desvincular dispositivo: " + error.message
+            );
+
+            forceUnlinkButton.disabled = false;
+            forceUnlinkButton.textContent = "FORÇAR DESVINCULAÇÃO";
+          }
+        });
+
+        card.appendChild(forceUnlinkButton);
+      }
 
       // RENOVAÇÃO DE VALIDADE
       const renewalInput = document.createElement("input");
