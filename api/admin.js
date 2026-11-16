@@ -669,8 +669,8 @@ module.exports = async (req, res) => {
     } catch (error) {
       console.error("[SAVE RELEASE]", error);
       return res.status(502).json({
-        error: "Não foi possível salvar a versão."
-      });
+  error: error.message || "Não foi possível salvar a versão."
+});
     }
   }
 
