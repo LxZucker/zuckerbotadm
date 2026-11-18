@@ -112,67 +112,100 @@ if (logoutButton) {
   });
 }
 
-// Lê o arquivo uma única vez. O mesmo buffer será usado no hash e no upload,
-// evitando uma segunda leitura do documento selecionado (problema comum em
-// alguns provedores de arquivos do Android).
+// Mantém os bytes em memória assim que o usuário seleciona o arquivo.
+// No Android/SAF, alguns provedores deixam de disponibilizar o URI temporário
+// se a leitura for adiada até o envio do formulário.
+let selectedReleaseFile = null;
+let selectedReleaseBytes = null;
+let selectedReleaseReadPromise = null;
+let releaseSelectionToken = 0;
+
+async function readBlobAsArrayBuffer(blob) {
+  if (typeof blob.arrayBuffer === "function") {
+    try {
+      return await blob.arrayBuffer();
+    } catch (error) {
+      console.warn("[ZIP] Blob.arrayBuffer falhou; tentando FileReader.", error);
+    }
+  }
+
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Não foi possível ler o arquivo."));
+    reader.onabort = () => reject(new Error("A leitura do arquivo foi cancelada."));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
 async function readReleaseFileBytes(file) {
   if (!file) throw new Error("Selecione novamente o arquivo ZIP.");
 
-  let bytes;
-
-  try {
-    if (typeof file.arrayBuffer === "function") {
-      bytes = await file.arrayBuffer();
-    } else {
-      bytes = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(
-          new Error("O navegador não conseguiu ler o arquivo selecionado.")
-        );
-        reader.onabort = () => reject(
-          new Error("A leitura do arquivo foi cancelada. Selecione-o novamente.")
-        );
-        reader.readAsArrayBuffer(file);
-      });
+  const attempts = [
+    () => readBlobAsArrayBuffer(file),
+    // Alguns provedores Android falham no File original, mas aceitam um Blob derivado.
+    () => readBlobAsArrayBuffer(file.slice(0, file.size, "application/zip")),
+    // Última alternativa: consumir o stream enquanto o descritor ainda está disponível.
+    async () => {
+      if (typeof file.stream !== "function") throw new Error("Leitura por stream indisponível.");
+      const reader = file.stream().getReader();
+      const chunks = [];
+      let total = 0;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          total += value.byteLength;
+        }
+      } finally {
+        reader.releaseLock?.();
+      }
+      const joined = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        joined.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return joined.buffer;
     }
-  } catch (error) {
-    console.error("[ZIP:LEITURA]", error);
-    throw new Error(
-      "Não foi possível ler esse arquivo no Android. Salve o ZIP na pasta Downloads e selecione-o novamente."
-    );
+  ];
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      const bytes = result instanceof ArrayBuffer
+        ? result
+        : result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength);
+      if (bytes.byteLength !== file.size) {
+        throw new Error(`Leitura incompleta: ${bytes.byteLength}/${file.size} bytes.`);
+      }
+      if (bytes.byteLength < 4) throw new Error("O arquivo está vazio ou não é um ZIP válido.");
+      const signature = new Uint8Array(bytes, 0, 4);
+      const isZip = signature[0] === 0x50 && signature[1] === 0x4b &&
+        [[0x03, 0x04], [0x05, 0x06], [0x07, 0x08]].some(pair =>
+          signature[2] === pair[0] && signature[3] === pair[1]
+        );
+      if (!isZip) throw new Error("O arquivo selecionado não possui assinatura ZIP (PK). Confira se o download terminou.");
+      return bytes;
+    } catch (error) {
+      errors.push(`${error?.name || "Erro"}: ${error?.message || error}`);
+      console.warn("[ZIP] Tentativa de leitura falhou.", error);
+    }
   }
 
-  if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== file.size) {
-    throw new Error(
-      "A leitura do ZIP ficou incompleta. Salve o arquivo em Downloads e selecione-o novamente."
-    );
-  }
-
-  // Um ZIP válido começa com PK. Evita publicar arquivo renomeado incorretamente.
-  const signature = new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength));
-  const isZip =
-    signature.length >= 4 &&
-    signature[0] === 0x50 &&
-    signature[1] === 0x4b &&
-    (
-      (signature[2] === 0x03 && signature[3] === 0x04) ||
-      (signature[2] === 0x05 && signature[3] === 0x06) ||
-      (signature[2] === 0x07 && signature[3] === 0x08)
-    );
-
-  if (!isZip) {
-    throw new Error("O arquivo selecionado não parece ser um ZIP válido.");
-  }
-
-  return bytes;
+  throw new Error(
+    "O Android não liberou o conteúdo desse arquivo para o navegador. Baixe o ZIP para a memória interna (Downloads), abra o seletor Arquivos do aparelho e escolha a cópia local. Detalhes: " + errors.join(" | ")
+  );
 }
 
 async function calculateSHA256(bytes) {
+  if (!crypto?.subtle?.digest) {
+    throw new Error("SHA-256 indisponível neste navegador. Abra o painel pelo Chrome atualizado em HTTPS.");
+  }
   const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-
-  return hashArray
+  return Array.from(new Uint8Array(hashBuffer))
     .map(byte => byte.toString(16).padStart(2, "0"))
     .join("");
 }
@@ -491,13 +524,18 @@ const releaseFileInput = document.getElementById("release-file");
 
 if (releaseFileInput) {
   releaseFileInput.addEventListener("change", () => {
-    const file = releaseFileInput.files[0];
+    const file = releaseFileInput.files?.[0] || null;
     const label = document.getElementById("release-file-label");
     const hint = document.getElementById("release-file-hint");
     const area = document.getElementById("release-upload-area");
+    const message = document.getElementById("release-message");
+    const token = ++releaseSelectionToken;
+
+    selectedReleaseFile = file;
+    selectedReleaseBytes = null;
+    selectedReleaseReadPromise = null;
 
     if (!label || !hint || !area) return;
-
     if (!file) {
       label.textContent = "Selecionar pacote ZIP";
       hint.textContent = "Toque para escolher o arquivo · até 50 MB";
@@ -506,10 +544,32 @@ if (releaseFileInput) {
     }
 
     label.textContent = file.name;
-    hint.textContent =
-      `${(file.size / (1024 * 1024)).toFixed(2)} MB · arquivo selecionado`;
-
+    hint.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB · lendo arquivo...`;
     area.classList.add("is-selected");
+    if (message) {
+      message.style.color = "#aeb4bf";
+      message.textContent = "Lendo o ZIP agora para manter a permissão do Android...";
+    }
+
+    // A leitura começa imediatamente no evento de seleção, não só ao enviar.
+    selectedReleaseReadPromise = readReleaseFileBytes(file).then(bytes => {
+      if (token !== releaseSelectionToken) return null;
+      selectedReleaseBytes = bytes;
+      hint.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB · ZIP lido e validado`;
+      if (message) {
+        message.style.color = "#19e68c";
+        message.textContent = "✓ ZIP lido com sucesso. Pode preparar a publicação.";
+      }
+      return bytes;
+    }).catch(error => {
+      if (token !== releaseSelectionToken) return null;
+      hint.textContent = "Não foi possível ler o arquivo selecionado";
+      if (message) {
+        message.style.color = "#ff747d";
+        message.textContent = error.message;
+      }
+      return null;
+    });
   });
 }
 
@@ -545,10 +605,21 @@ if (releaseForm) {
 
     try {
       message.style.color = "#aeb4bf";
-      message.textContent = "Lendo o ZIP e calculando integridade SHA-256...";
-      button.textContent = "LENDO E VALIDANDO ZIP...";
+      message.textContent = "Calculando integridade SHA-256...";
+      button.textContent = "CALCULANDO INTEGRIDADE...";
 
-      const fileBytes = await readReleaseFileBytes(file);
+      // Usa o buffer capturado imediatamente após a seleção. Se o navegador
+      // ainda estiver lendo, aguarda a mesma operação; não reabre o URI Android.
+      let fileBytes = selectedReleaseFile === file ? selectedReleaseBytes : null;
+      if (!fileBytes && selectedReleaseFile === file && selectedReleaseReadPromise) {
+        fileBytes = await selectedReleaseReadPromise;
+      }
+      if (!fileBytes) {
+        fileBytes = await readReleaseFileBytes(file);
+      }
+      if (fileBytes.byteLength !== file.size) {
+        throw new Error("O tamanho lido não corresponde ao arquivo selecionado. Selecione o ZIP novamente.");
+      }
       const sha256 = await calculateSHA256(fileBytes);
 
       message.textContent = "Preparando armazenamento seguro...";
@@ -705,7 +776,7 @@ async function loadAccounts() {
         status.textContent = "SUSPENSA";
         status.classList.add("suspended");
       } else if (account.validity_expired) {
-        tatus.textContent = "VALIDADE EXPIRADA";
+        status.textContent = "VALIDADE EXPIRADA";
         status.classList.add("expired");
       } else if (
         account.validity_type === "trial" &&
@@ -928,4 +999,4 @@ if (refreshUpdateReportsButton) {
     "click",
     loadUpdateReports
   );
-            }
+    }
