@@ -114,54 +114,27 @@ async function verifyReleaseObject(version, storagePath, expectedSize) {
   }
 
   const response = await supabaseRequest(
-    `/storage/v1/object/sign/${BUCKET}/${storagePathUrl(storagePath)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expiresIn: 120 })
-    }
+    `/storage/v1/object/${BUCKET}/${storagePathUrl(storagePath)}`,
+    { method: "GET", signal: AbortSignal.timeout(60000) }
   );
-
-  const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(result.message || result.error || "O ZIP não foi encontrado no Storage.");
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Não foi possível ler o ZIP armazenado (HTTP ${response.status}). ${detail.slice(0, 240)}`);
   }
 
-  const signedPath = result.signedURL || result.signedUrl || result.url;
-  if (typeof signedPath !== "string" || !signedPath) {
-    throw new Error("O Storage não forneceu um link temporário para validar o ZIP.");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length !== Number(expectedSize)) {
+    throw new Error(`Tamanho do ZIP no Storage não confere (${bytes.length}/${expectedSize} bytes).`);
+  }
+  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+    throw new Error("O arquivo enviado não possui uma assinatura ZIP válida.");
   }
 
-  const base = supabaseBaseUrl();
-  const downloadUrl = /^https?:\/\//i.test(signedPath)
-    ? signedPath
-    : signedPath.startsWith("/storage/v1/")
-      ? `${base}${signedPath}`
-      : signedPath.startsWith("/")
-        ? `${base}/storage/v1${signedPath}`
-        : null;
-
-  if (!downloadUrl) throw new Error("O Storage retornou um link de download inválido.");
-
-  const head = await fetch(downloadUrl, {
-    method: "HEAD",
-    signal: AbortSignal.timeout(20000)
-  });
-
-  if (!head.ok) {
-    throw new Error(`O ZIP não está acessível para os agentes (HTTP ${head.status}).`);
-  }
-
-  const contentLength = Number(head.headers.get("content-length"));
-  if (
-    Number.isFinite(contentLength) &&
-    contentLength > 0 &&
-    contentLength !== Number(expectedSize)
-  ) {
-    throw new Error(`O tamanho armazenado (${contentLength} bytes) não confere com o tamanho registrado (${expectedSize} bytes).`);
-  }
-
-  return { projectRef: supabaseProjectRef(), size: contentLength || null };
+  return {
+    projectRef: supabaseProjectRef(),
+    size: bytes.length,
+    sha256: crypto.createHash("sha256").update(bytes).digest("hex")
+  };
 }
 
 function safeCorePath(value) {
@@ -476,11 +449,14 @@ module.exports = async (req, res) => {
         });
       }
 
-      await verifyReleaseObject(
+      const verifiedPackage = await verifyReleaseObject(
         release.version,
         release.storage_path,
         Number(release.package_size)
       );
+      if (verifiedPackage.sha256 !== String(release.sha256).toLowerCase()) {
+        return res.status(409).json({ error: "O SHA-256 do ZIP armazenado não confere com o cadastro. Envie o pacote novamente." });
+      }
 
       const response = await supabaseRequest(
         `/rest/v1/bot_releases?id=eq.${encodeURIComponent(id)}&select=id,version,status`,
@@ -611,7 +587,6 @@ module.exports = async (req, res) => {
       const {
         version,
         storagePath,
-        sha256,
         packageSize,
         changelog
       } = req.body || {};
@@ -628,17 +603,13 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: "Arquivo inválido." });
       }
 
-      if (typeof sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(sha256)) {
-        return res.status(400).json({ error: "Hash SHA-256 inválido." });
-      }
-
       const size = Number(packageSize);
 
       if (!Number.isInteger(size) || size < 1 || size > 50 * 1024 * 1024) {
         return res.status(400).json({ error: "Tamanho do arquivo inválido." });
       }
 
-      await verifyReleaseObject(version, storagePath, size);
+      const verifiedPackage = await verifyReleaseObject(version, storagePath, size);
 
       const result = await supabaseRequest("/rest/v1/bot_releases", {
         method: "POST",
@@ -649,7 +620,7 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           version,
           storage_path: storagePath,
-          sha256: sha256.toLowerCase(),
+          sha256: verifiedPackage.sha256,
           package_size: size,
           changelog: String(changelog || ""),
           status: "draft"
@@ -1393,7 +1364,7 @@ module.exports = async (req, res) => {
         ...device,
         whatsapp_number: pairingInfo[device.id] || null,
         ...(accountInfo[device.user_id] || {
-          account_name: "Não identificado",
+         account_name: "Não identificado",
           suspended: false,
           suspended_until: null,
           suspension_remaining_ms: 0,
