@@ -112,22 +112,64 @@ if (logoutButton) {
   });
 }
 
-async function calculateSHA256(file) {
-  const buffer = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
+// Lê o arquivo uma única vez. O mesmo buffer será usado no hash e no upload,
+// evitando uma segunda leitura do documento selecionado (problema comum em
+// alguns provedores de arquivos do Android).
+async function readReleaseFileBytes(file) {
+  if (!file) throw new Error("Selecione novamente o arquivo ZIP.");
 
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(
-  new Error(
-    `Erro ao ler ZIP: ${reader.error?.name} - ${reader.error?.message}`
-  )
-);
+  let bytes;
 
-    reader.readAsArrayBuffer(file);
-  });
+  try {
+    if (typeof file.arrayBuffer === "function") {
+      bytes = await file.arrayBuffer();
+    } else {
+      bytes = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(
+          new Error("O navegador não conseguiu ler o arquivo selecionado.")
+        );
+        reader.onabort = () => reject(
+          new Error("A leitura do arquivo foi cancelada. Selecione-o novamente.")
+        );
+        reader.readAsArrayBuffer(file);
+      });
+    }
+  } catch (error) {
+    console.error("[ZIP:LEITURA]", error);
+    throw new Error(
+      "Não foi possível ler esse arquivo no Android. Salve o ZIP na pasta Downloads e selecione-o novamente."
+    );
+  }
 
-  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== file.size) {
+    throw new Error(
+      "A leitura do ZIP ficou incompleta. Salve o arquivo em Downloads e selecione-o novamente."
+    );
+  }
 
+  // Um ZIP válido começa com PK. Evita publicar arquivo renomeado incorretamente.
+  const signature = new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength));
+  const isZip =
+    signature.length >= 4 &&
+    signature[0] === 0x50 &&
+    signature[1] === 0x4b &&
+    (
+      (signature[2] === 0x03 && signature[3] === 0x04) ||
+      (signature[2] === 0x05 && signature[3] === 0x06) ||
+      (signature[2] === 0x07 && signature[3] === 0x08)
+    );
+
+  if (!isZip) {
+    throw new Error("O arquivo selecionado não parece ser um ZIP válido.");
+  }
+
+  return bytes;
+}
+
+async function calculateSHA256(bytes) {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
 
   return hashArray
@@ -503,10 +545,11 @@ if (releaseForm) {
 
     try {
       message.style.color = "#aeb4bf";
-      message.textContent = "Calculando integridade SHA-256...";
-      button.textContent = "CALCULANDO INTEGRIDADE...";
+      message.textContent = "Lendo o ZIP e calculando integridade SHA-256...";
+      button.textContent = "LENDO E VALIDANDO ZIP...";
 
-      const sha256 = await calculateSHA256(file);
+      const fileBytes = await readReleaseFileBytes(file);
+      const sha256 = await calculateSHA256(fileBytes);
 
       message.textContent = "Preparando armazenamento seguro...";
       button.textContent = "PREPARANDO ENVIO...";
@@ -526,7 +569,7 @@ if (releaseForm) {
           "Content-Type": "application/zip",
           "x-upsert": "false"
         },
-        body: file
+        body: fileBytes
       });
 
       if (!uploadResponse.ok) {
@@ -662,7 +705,7 @@ async function loadAccounts() {
         status.textContent = "SUSPENSA";
         status.classList.add("suspended");
       } else if (account.validity_expired) {
-        status.textContent = "VALIDADE EXPIRADA";
+        tatus.textContent = "VALIDADE EXPIRADA";
         status.classList.add("expired");
       } else if (
         account.validity_type === "trial" &&
@@ -885,4 +928,4 @@ if (refreshUpdateReportsButton) {
     "click",
     loadUpdateReports
   );
-}
+            }
